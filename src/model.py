@@ -3,7 +3,9 @@ To perform the symbolic regression we need to define the model.
 The function is represented as a tree structure, where each node is an operation or a variable.
 """
 
+import copy
 from enum import Enum
+from typing import Self
 
 import numpy as np
 
@@ -36,13 +38,14 @@ valid_children = {
 
 
 class Node:
-    def __init__(self, type, value=None, depth: int = 0):
+    def __init__(self, type, value=None):
         self.type = type
         if type == NodeType.VARIABLE or type == NodeType.CONSTANT:
             assert value is not None, "Variable and constant nodes must have a value."
         self.value = value
         self.children = []
-        self.depth = depth
+        self.parent = None
+        self.depth = 1
 
     def f(self, x: np.ndarray):
         # Interpret the whole tree as function
@@ -97,3 +100,24 @@ class Node:
             case NodeType.LOG:
                 return f"log({first_child})"
 
+    @property
+    def flatten(self):
+        return list(self)
+
+    def __iter__(self):
+        nodes = self.children.copy() + [self]
+        while nodes:
+            node = nodes.pop()
+            yield node
+            nodes.extend(node.children)
+
+    def clone(self):
+        return copy.deepcopy(self)
+
+    def __contains__(self, item: Self):
+        return item in self.flatten
+
+    def append(self, child):
+        self.children.append(child)
+        child.parent = self
+        child.depth = self.depth + 1
