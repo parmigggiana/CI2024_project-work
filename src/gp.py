@@ -1,4 +1,3 @@
-from ctypes import addressof
 import time
 
 import numpy as np
@@ -65,7 +64,7 @@ class Individual:
         return self.root.flatten
 
     @property
-    def fitness(self, x: np.ndarray = None, y: np.ndarray = None, w=(0.5, 0.5)):
+    def fitness(self, x: np.ndarray = None, y: np.ndarray = None, w=(1, 0)):
         if x is None:
             x = self.x
         if y is None:
@@ -197,24 +196,26 @@ class GP:
         # Half with full initialization and half with grow initialization
         # Use ramp-up max depth
         self.population = np.empty(shape=(population_size,), dtype=Individual)
-        for i in np.arange(population_size, step=2):
-
-            self.population[i] = Individual(
-                initialization_method="full",
-                max_depth=1 + max_depth * (i + 1) // population_size,
-                x=self.x,
-                y=self.y,
-                rng=self.rng,
-            )
-            self.population[i + 1] = Individual(
-                initialization_method="grow",
-                max_depth=1 + max_depth * (i + 1) // population_size,
-                x=self.x,
-                y=self.y,
-                rng=self.rng,
-            )
+        for i in np.arange(population_size):
+            if i % 2 == 0:
+                self.population[i] = Individual(
+                    initialization_method="full",
+                    max_depth=1 + max_depth * (i + 1) // population_size,
+                    x=self.x,
+                    y=self.y,
+                    rng=self.rng,
+                )
+            else:
+                self.population[i] = Individual(
+                    initialization_method="grow",
+                    max_depth=1 + max_depth * (i + 1) // population_size,
+                    x=self.x,
+                    y=self.y,
+                    rng=self.rng,
+                )
 
         for _ in range(self.max_generations):
+            # print(self.population)
             # Choose genetic operator
             genetic_operator = self.rng.choice(
                 [self.mutation, self.xover], p=genetic_operator_probabilities
@@ -224,7 +225,20 @@ class GP:
             self.population = np.concatenate((self.population, new_gen))
             # Sort the population by fitness
             self.population = sorted(self.population, reverse=True)
-            self.population = self.population[:population_size]
+
+            # Avoid stagnation cause by over-selection
+            if self.population_size >= 1000:
+                group1 = self.population[: 320 * self.reproduction_rate]
+                group2 = self.population[320 * self.reproduction_rate :]
+                self.population = np.concatenate(
+                    (
+                        group1[: int(self.population_size * 0.8)],
+                        group2[: int(self.population_size * 0.2)],
+                    )
+                )
+
+            else:
+                self.population = self.population[:population_size]
 
     def xover(self) -> np.ndarray:
         # Select each individual as a parent with probability proportional to its fitness

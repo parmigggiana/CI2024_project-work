@@ -4,9 +4,9 @@ from gp import GP
 
 SEED = 0
 params = {
-    "population_size": 1000,
+    "population_size": 100,
     "max_depth": 5,
-    "reproduction_rate": 2,
+    "reproduction_rate": 4,
     "genetic_operator_probabilities": (0.0, 1),
     "mutation_operators": ["subtree", "point", "hoist", "permutation", "collapse"],
     "min_fitness_variation_percent": 0.01,
@@ -15,7 +15,7 @@ params = {
 }
 
 if __name__ == "__main__":
-    problem = np.load("problem_0.npz")
+    problem = np.load("problem_2.npz")
     x = problem["x"]
     y = problem["y"]
     gp = GP(x, y, seed=SEED)
