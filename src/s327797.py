@@ -4,7 +4,7 @@ from gp import GP
 
 SEED = 0
 params = {
-    "population_size": 100,
+    "population_size": 1000,
     "max_depth": 5,
     "reproduction_rate": 2,
     "genetic_operator_probabilities": (0.0, 1),
@@ -19,6 +19,7 @@ if __name__ == "__main__":
     x = problem["x"]
     y = problem["y"]
     gp = GP(x, y, seed=SEED)
+
     gp.learn(**params)
     f = gp.best.f
     # print(f(x))

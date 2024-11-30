@@ -1,3 +1,4 @@
+from ctypes import addressof
 import time
 
 import numpy as np
@@ -64,16 +65,17 @@ class Individual:
         return self.root.flatten
 
     @property
-    def fitness(self, x: np.ndarray = None, y: np.ndarray = None):
+    def fitness(self, x: np.ndarray = None, y: np.ndarray = None, w=(0.5, 0.5)):
         if x is None:
             x = self.x
         if y is None:
             y = self.y
 
         mse = np.mean((self.f(x) - y) ** 2)
-        if mse in [np.nan, np.inf]:
+        if mse in [np.nan, None, np.inf]:
             return 0
-        return -mse - self.depth
+
+        return 1 / (w[0] * mse + w[1] * self.depth)
 
     def __lt__(self, other):
         return self.fitness < other.fitness
@@ -212,7 +214,7 @@ class GP:
                 rng=self.rng,
             )
 
-        for _ in range(1000):
+        for _ in range(self.max_generations):
             # Choose genetic operator
             genetic_operator = self.rng.choice(
                 [self.mutation, self.xover], p=genetic_operator_probabilities
@@ -245,22 +247,23 @@ class GP:
 
             node1 = self.rng.choice(new_individual1.nodes)
             node2 = self.rng.choice(new_individual2.nodes)
+            node2_p = node2.parent
 
             if node1.parent is None:
                 new_individual1.root = node2
                 new_individual1.root.parent = None
                 new_individual1.root.depth = 1
             else:
-                node1.parent.append(node2)
                 node1.parent.children.remove(node1)
+                node1.parent.append(node2)  # This changes node2.parent and node2.depth
 
-            if node2.parent is None:
+            if node2_p is None:
                 new_individual2.root = node1
                 new_individual2.root.parent = None
                 new_individual2.root.depth = 1
             else:
-                node2.parent.children.remove(node2)
-                node2.parent.append(node1)
+                node2_p.children.remove(node2)
+                node2_p.append(node1)
 
             new_gen[i] = new_individual1
             new_gen[i + 1] = new_individual2
