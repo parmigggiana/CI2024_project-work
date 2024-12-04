@@ -37,6 +37,29 @@ valid_children = {
 }
 
 
+reverse_valid_children = {
+    0: [NodeType.VARIABLE, NodeType.CONSTANT],
+    1: [NodeType.SIN, NodeType.COS, NodeType.EXP],
+    2: [NodeType.ADD, NodeType.SUB, NodeType.MUL, NodeType.DIV],
+}
+
+
+function_set = [
+    NodeType.ADD,
+    NodeType.SUB,
+    NodeType.MUL,
+    NodeType.DIV,
+    NodeType.SIN,
+    NodeType.COS,
+    NodeType.EXP,
+]
+
+terminal_set = [
+    NodeType.VARIABLE,
+    NodeType.CONSTANT,
+]
+
+
 class Node:
     def __init__(self, type, value=None):
         self.type = type
@@ -121,3 +144,30 @@ class Node:
         self.children.append(child)
         child.parent = self
         child.depth = self.depth + 1
+
+    def __hash__(self) -> int:
+        return hash(str(self))
+
+    def __eq__(self, o: object) -> bool:
+        return (
+            self.value == o.value
+            and self.type == o.type
+            and all([c in o.children for c in self.children])
+            and all([c in self.children for c in o.children])
+        )
+
+    def simplify(self, x: np.ndarray):
+        # Return a simplified version of the function f
+        # resolving constant sub-trees
+
+        simplified_root = self.clone()
+        simplified_root.children = [
+            child.simplify(x) for child in simplified_root.children
+        ]
+
+        if len(simplified_root.children) > 0 and all(
+            child.type == NodeType.CONSTANT for child in simplified_root.children
+        ):
+            simplified_root = Node(NodeType.CONSTANT, value=simplified_root.f(x))
+
+        return simplified_root
