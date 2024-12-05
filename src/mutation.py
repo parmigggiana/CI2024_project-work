@@ -1,11 +1,9 @@
 import time
-from zoneinfo import available_timezones
 
-from matplotlib.style import available
 import numpy as np
 
-from model import Node, NodeType, reverse_valid_children, valid_children
 from individual import Individual
+from model import Node, NodeType, reverse_valid_children, valid_children
 
 
 class MutationStrategy:
@@ -58,11 +56,12 @@ class HoistMutation(MutationStrategy):
         valid_nodes = [
             node for node in individual.nodes if valid_children[node.type] == 2
         ]
-        if valid_nodes:
+        if len(valid_nodes) > 1:
             node = cls.rng.choice(valid_nodes)
             while node.parent is None:
                 node = cls.rng.choice(valid_nodes)
-            individual.root = Node(node.type, node.value, children=node.children)
+            individual.root = Node(node.type, node.value)
+            individual.root.children = node.children
             # Set depths
             nodes = [
                 individual.root,
