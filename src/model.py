@@ -20,7 +20,8 @@ class NodeType(Enum):
     SIN = 6
     COS = 7
     EXP = 8
-    # LOG = 9
+    ABS = 9
+    LOG = 10
 
 
 valid_children = {
@@ -33,13 +34,26 @@ valid_children = {
     NodeType.SIN: 1,
     NodeType.COS: 1,
     NodeType.EXP: 1,
-    # NodeType.LOG: 1
+    NodeType.ABS: 1,
+    NodeType.LOG: 1,
+}
+
+syms = {
+    NodeType.ADD: "+",
+    NodeType.SUB: "-",
+    NodeType.MUL: "*",
+    NodeType.DIV: "/",
+    NodeType.SIN: "sin",
+    NodeType.COS: "cos",
+    NodeType.EXP: "exp",
+    NodeType.ABS: "abs",
+    NodeType.LOG: "log",
 }
 
 
 reverse_valid_children = {
     0: [NodeType.VARIABLE, NodeType.CONSTANT],
-    1: [NodeType.SIN, NodeType.COS, NodeType.EXP],
+    1: [NodeType.SIN, NodeType.COS, NodeType.EXP, NodeType.ABS, NodeType.LOG],
     2: [NodeType.ADD, NodeType.SUB, NodeType.MUL, NodeType.DIV],
 }
 
@@ -52,6 +66,8 @@ function_set = [
     NodeType.SIN,
     NodeType.COS,
     NodeType.EXP,
+    NodeType.ABS,
+    NodeType.LOG,
 ]
 
 terminal_set = [
@@ -92,6 +108,8 @@ class Node:
                 return np.cos(self.children[0].f(x))
             case NodeType.EXP:
                 return np.exp(self.children[0].f(x))
+            case NodeType.ABS:
+                return np.abs(self.children[0].f(x))
             case NodeType.LOG:
                 return np.log(self.children[0].f(x))
 
@@ -105,7 +123,7 @@ class Node:
             case NodeType.VARIABLE:
                 return f"x[{self.value}]"
             case NodeType.CONSTANT:
-                return f"{self.value}"
+                return f"{self.value:.3f}"
             case NodeType.ADD:
                 return f"({first_child} + {second_child})"
             case NodeType.SUB:
@@ -120,6 +138,8 @@ class Node:
                 return f"cos({first_child})"
             case NodeType.EXP:
                 return f"exp({first_child})"
+            case NodeType.ABS:
+                return f"abs({first_child})"
             case NodeType.LOG:
                 return f"log({first_child})"
 
@@ -128,11 +148,13 @@ class Node:
         return list(self)
 
     def __iter__(self):
-        nodes = self.children.copy() + [self]
+        nodes = [
+            self,
+        ]
         while nodes:
             node = nodes.pop()
-            yield node
             nodes.extend(node.children)
+            yield node
 
     def clone(self):
         return copy.deepcopy(self)
@@ -149,12 +171,10 @@ class Node:
         return hash(str(self))
 
     def __eq__(self, o: object) -> bool:
-        return (
-            self.value == o.value
-            and self.type == o.type
-            and all([c in o.children for c in self.children])
-            and all([c in self.children for c in o.children])
-        )
+        return str(self) == str(o)
+
+    def __repr__(self) -> str:
+        return str(self)
 
     def simplify(self, x: np.ndarray):
         # Return a simplified version of the function f
@@ -165,9 +185,151 @@ class Node:
             child.simplify(x) for child in simplified_root.children
         ]
 
+        # Simplify constant sub-trees
         if len(simplified_root.children) > 0 and all(
             child.type == NodeType.CONSTANT for child in simplified_root.children
         ):
             simplified_root = Node(NodeType.CONSTANT, value=simplified_root.f(x))
 
+        # 1.24 - 1.24 OR x[0] - x[0]
+        if (
+            simplified_root.type == NodeType.SUB
+            and all(
+                x.type in [NodeType.CONSTANT, NodeType.VARIABLE]
+                for x in simplified_root.children
+            )
+            and simplified_root.children[0].type == simplified_root.children[1].type
+            and simplified_root.children[0].value == simplified_root.children[1].value
+        ):
+            simplified_root = Node(NodeType.CONSTANT, value=0)
+
+        # x + 0 or 0 + x
+        if simplified_root.type == NodeType.ADD:
+            if (
+                simplified_root.children[0].type == NodeType.CONSTANT
+                and simplified_root.children[0].value == 0
+            ):
+                simplified_root.type = simplified_root.children[1].type
+                simplified_root.value = simplified_root.children[1].value
+                simplified_root.children = simplified_root.children[1].children
+            elif (
+                simplified_root.children[1].type == NodeType.CONSTANT
+                and simplified_root.children[1].value == 0
+            ):
+                simplified_root.type = simplified_root.children[0].type
+                simplified_root.value = simplified_root.children[0].value
+                simplified_root.children = simplified_root.children[0].children
+
+        # x * 1 or 1 * x
+        if simplified_root.type == NodeType.MUL:
+            if (
+                simplified_root.children[0].type == NodeType.CONSTANT
+                and simplified_root.children[0].value == 1
+            ):
+                simplified_root.type = simplified_root.children[1].type
+                simplified_root.value = simplified_root.children[1].value
+                simplified_root.children = simplified_root.children[1].children
+            elif (
+                simplified_root.children[1].type == NodeType.CONSTANT
+                and simplified_root.children[1].value == 1
+            ):
+                simplified_root.type = simplified_root.children[0].type
+                simplified_root.value = simplified_root.children[0].value
+                simplified_root.children = simplified_root.children[0].children
+
+        # x / 1
+        if simplified_root.type == NodeType.DIV:
+            if (
+                simplified_root.children[1].type == NodeType.CONSTANT
+                and simplified_root.children[1].value == 1
+            ):
+                simplified_root.type = simplified_root.children[0].type
+                simplified_root.value = simplified_root.children[0].value
+                simplified_root.children = simplified_root.children[0].children
+
+        # 0 / x
+        if simplified_root.type == NodeType.DIV:
+            if (
+                simplified_root.children[0].type == NodeType.CONSTANT
+                and simplified_root.children[0].value == 0
+            ):
+                simplified_root = Node(NodeType.CONSTANT, value=0)
+
+        # x * 0 or 0 * x
+        if simplified_root.type == NodeType.MUL:
+            if (
+                simplified_root.children[0].type == NodeType.CONSTANT
+                and simplified_root.children[0].value == 0
+            ):
+                simplified_root = Node(NodeType.CONSTANT, value=0)
+            elif (
+                simplified_root.children[1].type == NodeType.CONSTANT
+                and simplified_root.children[1].value == 0
+            ):
+                simplified_root = Node(NodeType.CONSTANT, value=0)
+
+        # Reset depths and parents
+        nodes = [simplified_root]
+        while nodes:
+            node = nodes.pop()
+            for child in node.children:
+                child.depth = node.depth + 1
+                child.parent = node
+                nodes.append(child)
+
         return simplified_root
+
+    def draw(self):
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.yaxis.set_visible(False)
+        ax.xaxis.set_visible(False)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_title(self)
+        # Iterate over the nodes and create a list ordered by depth
+        draw_nodes = np.empty(shape=(max([n.depth for n in self.flatten]),), dtype=list)
+        for node in self.flatten:
+            if draw_nodes[node.depth - 1] is None:
+                draw_nodes[node.depth - 1] = []
+            draw_nodes[node.depth - 1].append(node)
+
+        # Draw the nodes
+        coords = {}
+        for i, nodes in enumerate(draw_nodes):
+            for j, node in enumerate(nodes):
+                x = (j + 0.5) / len(nodes)
+                y = 0.98 - i / len(draw_nodes)
+                if node.type == NodeType.VARIABLE:
+                    text = f"x[{node.value}]"
+                elif node.type == NodeType.CONSTANT:
+                    text = f"{node.value:.2f}"
+                else:
+                    text = syms[node.type]
+
+                ax.text(
+                    x,
+                    y,
+                    text,
+                    ha="center",
+                    va="center",
+                    bbox=dict(
+                        facecolor="white",
+                        alpha=1,
+                        boxstyle="circle,pad=0.8",
+                        lw=0.7,
+                    ),
+                    fontweight="bold",
+                )
+                coords[id(node)] = (x, y)
+
+        # Draw the edges
+        for node in self.flatten:
+            if node.parent is not None:
+                x0, y0 = coords[id(node.parent)]
+                x1, y1 = coords[id(node)]
+                ax.plot([x0, x1], [y0, y1], color="black")
+
+        plt.show()
