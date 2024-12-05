@@ -1,5 +1,4 @@
 import time
-from typing import Callable
 import warnings
 
 import numpy as np
@@ -15,10 +14,12 @@ class Individual:
         max_depth: int = None,
         x: np.ndarray = None,
         y: np.ndarray = None,
+        w: np.ndarray = (1, 0),
         rng: np.random.Generator = None,
     ):
         self.x = x
         self.y = y
+        self.w = w
         if rng is None:
             self.rng: np.random.Generator = np.random.rng.default_rng(
                 seed=time.time_ns()
@@ -51,18 +52,22 @@ class Individual:
         return self.root.flatten
 
     @property
-    def fitness(self, x: np.ndarray = None, y: np.ndarray = None, w=(0.9, 0.1)):
+    def fitness(
+        self, x: np.ndarray = None, y: np.ndarray = None, w: tuple[float, float] = None
+    ):
         if x is None:
             x = self.x
         if y is None:
             y = self.y
+        if w is None:
+            w = self.w
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             mse = np.mean((self.f(x) - y) ** 2)
-        fitness = 1 / (w[0] * mse - w[1] * self.depth)
+        fitness = w[0] / mse - w[1] * self.depth
 
-        if not isinstance(fitness, float):
+        if np.isnan(fitness) or np.isinf(fitness):
             return 0
 
         return fitness
@@ -133,7 +138,6 @@ class Individual:
 
                 node.append(new_node)
                 nodes.append(new_node)
-        # print(self.root)
 
     def clone(self):
         clone = Individual(root=self.root.clone(), x=self.x, y=self.y, rng=self.rng)
