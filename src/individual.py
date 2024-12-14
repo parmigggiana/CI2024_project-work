@@ -1,5 +1,4 @@
 import time
-import warnings
 
 import numpy as np
 
@@ -12,14 +11,10 @@ class Individual:
         root: Node = None,
         initialization_method: str = None,
         max_depth: int = None,
-        x: np.ndarray = None,
-        y: np.ndarray = None,
-        w: np.ndarray = (1, 0),
+        input_size: int = None,
         rng: np.random.Generator = None,
     ):
-        self.x = x
-        self.y = y
-        self.w = w
+        self.input_size = input_size
         if rng is None:
             self.rng: np.random.Generator = np.random.rng.default_rng(
                 seed=time.time_ns()
@@ -51,35 +46,29 @@ class Individual:
     def nodes(self):
         return self.root.flatten
 
-    @property
-    def fitness(
-        self, x: np.ndarray = None, y: np.ndarray = None, w: tuple[float, float] = None
-    ):
-        if x is None:
-            x = self.x
-        if y is None:
-            y = self.y
-        if w is None:
-            w = self.w
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            mse = np.mean((self.f(x) - y) ** 2)
-        fitness = w[0] / mse - w[1] * self.depth
-
-        if np.isnan(fitness) or np.isinf(fitness):
-            return 0
-
-        return fitness
-
-    def __lt__(self, other):
-        return self.fitness < other.fitness
-
     def __str__(self):
         return str(self.root)
 
     def __repr__(self):
         return str(self)
+
+    def __eq__(self, other):
+        return self.root == other.root
+
+    def __hash__(self):
+        return hash(self.root)
+
+    def get_random_node(self, node_type):
+        if node_type == NodeType.VARIABLE:
+            return Node(
+                node_type,
+                value=self.rng.integers(self.input_size),
+            )
+        else:
+            return Node(
+                node_type,
+                value=self.rng.random(),
+            )
 
     def init_tree(self, max_depth: int = None, mode: str = None):
         if mode is None:
@@ -91,28 +80,17 @@ class Individual:
         assert mode in ["full", "grow"], "Invalid initialization method."
         assert max_depth is not None, "Maximum depth must be specified."
 
-        match mode:
-            case "full":
-                in_set = function_set
-            case "grow":
-                in_set = function_set + terminal_set
+        if mode == "full":
+            in_set = function_set
+        elif mode == "grow":
+            in_set = function_set + terminal_set
 
-        if max_depth > 1:
-            n_type = self.rng.choice(in_set)
-        else:
+        if max_depth == 1:
             n_type = self.rng.choice(terminal_set)
-
-        if n_type == NodeType.VARIABLE:
-            self.root = Node(
-                n_type,
-                value=self.rng.integers(self.x.shape[0]),
-            )
         else:
-            self.root = Node(
-                n_type,
-                value=self.rng.random(),
-            )
+            n_type = self.rng.choice(in_set)
 
+        self.root = self.get_random_node(n_type)
         nodes: list[Node] = [
             self.root,
         ]
@@ -125,29 +103,20 @@ class Individual:
                 else:
                     n_type = self.rng.choice(in_set)
 
-                if n_type == NodeType.VARIABLE:
-                    new_node = Node(
-                        n_type,
-                        value=self.rng.integers(self.x.shape[0]),
-                    )
-                else:
-                    new_node = Node(
-                        n_type,
-                        value=self.rng.random(),
-                    )
+                new_node = self.get_random_node(n_type)
 
                 node.append(new_node)
                 nodes.append(new_node)
 
     def clone(self):
-        clone = Individual(root=self.root.clone(), x=self.x, y=self.y, rng=self.rng)
+        clone = Individual(root=self.root.clone(), rng=self.rng)
         return clone
 
     @property
     def depth(self):
         return max([n.depth for n in self.nodes])
 
-    def simplify(self):
+    def simplify(self, x):
         if not hasattr(self, "simplified_root"):
-            self.simplified_root = self.root.simplify(self.x)
+            self.simplified_root = self.root.simplify(x)
         return self.simplified_root

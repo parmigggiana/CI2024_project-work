@@ -3,7 +3,6 @@ To perform the symbolic regression we need to define the model.
 The function is represented as a tree structure, where each node is an operation or a variable.
 """
 
-import copy
 from enum import Enum
 from typing import Self
 
@@ -82,9 +81,13 @@ class Node:
         if type == NodeType.VARIABLE or type == NodeType.CONSTANT:
             assert value is not None, "Variable and constant nodes must have a value."
         self.value = value
-        self.children = []
+        self._children = []
         self.parent = None
         self.depth = 1
+
+    @property
+    def children(self):
+        return self._children
 
     def f(self, x: np.ndarray):
         # Interpret the whole tree as function
@@ -95,29 +98,29 @@ class Node:
             case NodeType.CONSTANT:
                 return self.value
             case NodeType.ADD:
-                return self.children[0].f(x) + self.children[1].f(x)
+                return self._children[0].f(x) + self._children[1].f(x)
             case NodeType.SUB:
-                return self.children[0].f(x) - self.children[1].f(x)
+                return self._children[0].f(x) - self._children[1].f(x)
             case NodeType.MUL:
-                return self.children[0].f(x) * self.children[1].f(x)
+                return self._children[0].f(x) * self._children[1].f(x)
             case NodeType.DIV:
-                return self.children[0].f(x) / self.children[1].f(x)
+                return self._children[0].f(x) / self._children[1].f(x)
             case NodeType.SIN:
-                return np.sin(self.children[0].f(x))
+                return np.sin(self._children[0].f(x))
             case NodeType.COS:
-                return np.cos(self.children[0].f(x))
+                return np.cos(self._children[0].f(x))
             case NodeType.EXP:
-                return np.exp(self.children[0].f(x))
+                return np.exp(self._children[0].f(x))
             case NodeType.ABS:
-                return np.abs(self.children[0].f(x))
+                return np.abs(self._children[0].f(x))
             case NodeType.LOG:
-                return np.log(self.children[0].f(x))
+                return np.log(self._children[0].f(x))
 
     def __str__(self):
         # Print the tree in a human-readable format
         # Recursively print the children
-        first_child = self.children[0] if len(self.children) > 0 else "()"
-        second_child = self.children[1] if len(self.children) > 1 else "()"
+        first_child = self._children[0] if len(self._children) > 0 else "()"
+        second_child = self._children[1] if len(self._children) > 1 else "()"
 
         match self.type:
             case NodeType.VARIABLE:
@@ -153,17 +156,21 @@ class Node:
         ]
         while nodes:
             node = nodes.pop()
-            nodes.extend(node.children)
+            nodes.extend(node._children)
             yield node
 
     def clone(self):
-        return copy.deepcopy(self)
+        children = [child.clone() for child in self._children]
+        new_node = Node(self.type, self.value)
+        for child in children:
+            new_node.append(child)
+        return new_node
 
     def __contains__(self, item: Self):
         return item in self.flatten
 
     def append(self, child):
-        self.children.append(child)
+        self._children.append(child)
         child.parent = self
         child.depth = self.depth + 1
 
@@ -181,13 +188,13 @@ class Node:
         # resolving constant sub-trees
 
         simplified_root = self.clone()
-        simplified_root.children = [
-            child.simplify(x) for child in simplified_root.children
+        simplified_root._children = [
+            child.simplify(x) for child in simplified_root._children
         ]
 
         # Simplify constant sub-trees
-        if len(simplified_root.children) > 0 and all(
-            child.type == NodeType.CONSTANT for child in simplified_root.children
+        if len(simplified_root._children) > 0 and all(
+            child.type == NodeType.CONSTANT for child in simplified_root._children
         ):
             simplified_root = Node(NodeType.CONSTANT, value=simplified_root.f(x))
 
@@ -196,75 +203,75 @@ class Node:
             simplified_root.type == NodeType.SUB
             and all(
                 x.type in [NodeType.CONSTANT, NodeType.VARIABLE]
-                for x in simplified_root.children
+                for x in simplified_root._children
             )
-            and simplified_root.children[0].type == simplified_root.children[1].type
-            and simplified_root.children[0].value == simplified_root.children[1].value
+            and simplified_root._children[0].type == simplified_root._children[1].type
+            and simplified_root._children[0].value == simplified_root._children[1].value
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
 
         # x + 0 or 0 + x
         if simplified_root.type == NodeType.ADD:
             if (
-                simplified_root.children[0].type == NodeType.CONSTANT
-                and simplified_root.children[0].value == 0
+                simplified_root._children[0].type == NodeType.CONSTANT
+                and simplified_root._children[0].value == 0
             ):
-                simplified_root.type = simplified_root.children[1].type
-                simplified_root.value = simplified_root.children[1].value
-                simplified_root.children = simplified_root.children[1].children
+                simplified_root.type = simplified_root._children[1].type
+                simplified_root.value = simplified_root._children[1].value
+                simplified_root._children = simplified_root._children[1].children
             elif (
-                simplified_root.children[1].type == NodeType.CONSTANT
-                and simplified_root.children[1].value == 0
+                simplified_root._children[1].type == NodeType.CONSTANT
+                and simplified_root._children[1].value == 0
             ):
-                simplified_root.type = simplified_root.children[0].type
-                simplified_root.value = simplified_root.children[0].value
-                simplified_root.children = simplified_root.children[0].children
+                simplified_root.type = simplified_root._children[0].type
+                simplified_root.value = simplified_root._children[0].value
+                simplified_root._children = simplified_root._children[0].children
 
         # x * 1 or 1 * x
         if simplified_root.type == NodeType.MUL:
             if (
-                simplified_root.children[0].type == NodeType.CONSTANT
-                and simplified_root.children[0].value == 1
+                simplified_root._children[0].type == NodeType.CONSTANT
+                and simplified_root._children[0].value == 1
             ):
-                simplified_root.type = simplified_root.children[1].type
-                simplified_root.value = simplified_root.children[1].value
-                simplified_root.children = simplified_root.children[1].children
+                simplified_root.type = simplified_root._children[1].type
+                simplified_root.value = simplified_root._children[1].value
+                simplified_root._children = simplified_root._children[1].children
             elif (
-                simplified_root.children[1].type == NodeType.CONSTANT
-                and simplified_root.children[1].value == 1
+                simplified_root._children[1].type == NodeType.CONSTANT
+                and simplified_root._children[1].value == 1
             ):
-                simplified_root.type = simplified_root.children[0].type
-                simplified_root.value = simplified_root.children[0].value
-                simplified_root.children = simplified_root.children[0].children
+                simplified_root.type = simplified_root._children[0].type
+                simplified_root.value = simplified_root._children[0].value
+                simplified_root._children = simplified_root._children[0].children
 
         # x / 1
         if simplified_root.type == NodeType.DIV:
             if (
-                simplified_root.children[1].type == NodeType.CONSTANT
-                and simplified_root.children[1].value == 1
+                simplified_root._children[1].type == NodeType.CONSTANT
+                and simplified_root._children[1].value == 1
             ):
-                simplified_root.type = simplified_root.children[0].type
-                simplified_root.value = simplified_root.children[0].value
-                simplified_root.children = simplified_root.children[0].children
+                simplified_root.type = simplified_root._children[0].type
+                simplified_root.value = simplified_root._children[0].value
+                simplified_root._children = simplified_root._children[0].children
 
         # 0 / x
         if simplified_root.type == NodeType.DIV:
             if (
-                simplified_root.children[0].type == NodeType.CONSTANT
-                and simplified_root.children[0].value == 0
+                simplified_root._children[0].type == NodeType.CONSTANT
+                and simplified_root._children[0].value == 0
             ):
                 simplified_root = Node(NodeType.CONSTANT, value=0)
 
         # x * 0 or 0 * x
         if simplified_root.type == NodeType.MUL:
             if (
-                simplified_root.children[0].type == NodeType.CONSTANT
-                and simplified_root.children[0].value == 0
+                simplified_root._children[0].type == NodeType.CONSTANT
+                and simplified_root._children[0].value == 0
             ):
                 simplified_root = Node(NodeType.CONSTANT, value=0)
             elif (
-                simplified_root.children[1].type == NodeType.CONSTANT
-                and simplified_root.children[1].value == 0
+                simplified_root._children[1].type == NodeType.CONSTANT
+                and simplified_root._children[1].value == 0
             ):
                 simplified_root = Node(NodeType.CONSTANT, value=0)
 
@@ -272,7 +279,7 @@ class Node:
         nodes = [simplified_root]
         while nodes:
             node = nodes.pop()
-            for child in node.children:
+            for child in node._children:
                 child.depth = node.depth + 1
                 child.parent = node
                 nodes.append(child)
