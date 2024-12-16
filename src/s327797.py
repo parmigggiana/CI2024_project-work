@@ -14,27 +14,29 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
     )
 
 
+import sys
 import warnings
 
 import numpy as np
 
 from gp import GP
-import sys
-
 
 sys.setrecursionlimit(2000)
-SEED = 0
-PROBLEM = 2
+SEED = None
+PROBLEM = 1
 
-POPULATION_SIZE = 40
+POPULATION_SIZE = 50
 MAX_DEPTH = 4
-MAX_GENERATIONS = 1000
+MAX_GENERATIONS = 500
 
 
 def fitness(x, y, ind, weights: tuple):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        mse = np.mean((ind.f(x) - y) ** 2)
+        try:
+            mse = np.mean((ind.f(x) - y) ** 2)
+        except ZeroDivisionError:
+            return 0
     fitness = weights[0] / mse - weights[1] * ind.depth
 
     if np.isnan(fitness) or np.isinf(fitness):
@@ -70,6 +72,7 @@ if __name__ == "__main__":
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
+        parallelize=True,
     )
 
     validation = np.load(f"tests/validation_{PROBLEM}.npz")

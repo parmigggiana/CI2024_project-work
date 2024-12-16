@@ -16,9 +16,7 @@ class Individual:
     ):
         self.input_size = input_size
         if rng is None:
-            self.rng: np.random.Generator = np.random.rng.default_rng(
-                seed=time.time_ns()
-            )
+            self.rng: np.random.Generator = np.random.default_rng(seed=time.time_ns())
         else:
             self.rng: np.random.Generator = rng
 

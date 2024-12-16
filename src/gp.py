@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
@@ -155,13 +156,19 @@ class GP:
     def population_size(self):
         return self.population.shape[-1]
 
-    def run(self, init_population_size=10, init_max_depth=4, max_generations=100):
+    def run(
+        self,
+        init_population_size=10,
+        init_max_depth=4,
+        max_generations=100,
+        parallelize=True,
+    ):
 
         self.init_population_size = init_population_size
         self.init_max_depth = init_max_depth
         self.max_generations = max_generations
         self.population = np.empty(shape=(init_population_size,), dtype=Individual)
-        self.init_population(init_population_size, init_max_depth)
+        self.init_population(init_population_size, init_max_depth, parallelize)
 
         for hook in self._before_loop_hooks:
             hook()
@@ -183,13 +190,15 @@ class GP:
                 parent_selector=self._parent_selector,
                 fitness_function=self._fitness_function,
                 input_size=self.input_size,
+                parallelize=parallelize,
             )
-            if new_gen is None:
-                log.warning(
-                    f"Genetic operator {genetic_operator} did not generate any new individual"
-                )
-                break
+
+            assert (
+                new_gen is not None
+            ), f"Genetic operator {genetic_operator} did not generate any new individual"
+
             population = np.concatenate((self.population, new_gen), axis=0)
+
             self.population = self._survivor_selector(
                 population=population,
                 size=self.population_size,
@@ -210,18 +219,28 @@ class GP:
         for hook in self._after_loop_hooks:
             hook()
 
-    def init_population(self, population_size, max_depth):
-        for i in np.arange(population_size):
-            if i % 2 == 0:
-                self.population[i] = Individual(
-                    initialization_method="full",
-                    max_depth=1 + max_depth * (i + 1) // population_size,
-                    input_size=self.input_size,
-                    rng=self._rng,
+    def init_population(self, population_size, max_depth, parallelize=True):
+        if parallelize:
+            with ProcessPoolExecutor() as executor:
+                futures = [
+                    executor.submit(
+                        Individual,
+                        initialization_method="full" if i % 2 == 0 else "grow",
+                        max_depth=1 + max_depth * (i + 1) // population_size,
+                        input_size=self.input_size,
+                        rng=np.random.default_rng(
+                            self._rng.integers(0, np.iinfo(np.int32).max)
+                        ),
+                    )
+                    for i in np.arange(population_size)
+                ]
+                self.population[:population_size] = np.array(
+                    [future.result() for future in as_completed(futures)]
                 )
-            else:
+        else:
+            for i in np.arange(population_size):
                 self.population[i] = Individual(
-                    initialization_method="grow",
+                    initialization_method="full" if i % 2 == 0 else "grow",
                     max_depth=1 + max_depth * (i + 1) // population_size,
                     input_size=self.input_size,
                     rng=self._rng,

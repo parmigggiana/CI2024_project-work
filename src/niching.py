@@ -16,7 +16,8 @@ class Extinction(NichingStrategy):
         unique = set(gp.population)
         if len(unique) <= 4:
             log.info("Extinction event occurred. Reinitializing population.")
-            gp.population[-len(unique) :] = unique.pop()
+            for i, ind in enumerate(unique, 1):
+                gp.population[-i] = ind
             gp.init_population(gp.population_size - len(unique), gp.init_max_depth)
 
 
