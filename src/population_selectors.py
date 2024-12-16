@@ -20,14 +20,20 @@ class DeterministicSelector(Selector):
 class FitnessProportionalSelector(Selector):
     @classmethod
     def select(cls, population, fitness_function, rng):
-        p = np.array([fitness_function(individual) for individual in population])
+        p = np.array(
+            [fitness_function(individual) for individual in population], dtype=float
+        )
         p -= (
             np.min(p) - 1e-9
         )  # if all fitness are the same, the probability would be 0 without 1e-9
         p /= p.sum()
         p *= len(p)
 
-        return population[rng.random(size=population.shape[-1]) < p]
+        selected = population[rng.random(size=population.shape[-1]) < p]
+        if selected.shape[-1] < 2:
+            # If only one individual is selected, return the two highest-fitness individuals
+            selected = population[np.argsort(p)[-2:]]
+        return selected
 
 
 class TournamentSelector(Selector):
