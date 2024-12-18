@@ -48,6 +48,7 @@ class GP:
         self._parent_selector = []
         self._fitness_function = None
         self._stop_condition = False
+        self.individuals_fitness = {}
 
         if self._tqdm:
             from tqdm import tqdm
@@ -136,7 +137,14 @@ class GP:
         self._parent_selector = selector
 
     def set_fitness_function(self, hook):
-        self._fitness_function = hook
+        def wrapped_fitness(ind):
+            if ind in self.individuals_fitness:
+                return self.individuals_fitness[ind]
+            fitness = hook(ind)
+            self.individuals_fitness[ind] = fitness
+            return fitness
+
+        self._fitness_function = wrapped_fitness
 
     def add_niching_operator(self, operator):
         if isinstance(operator, str):
@@ -162,6 +170,7 @@ class GP:
         init_max_depth=4,
         max_generations=100,
         parallelize=True,
+        force_simplify=False,
     ):
 
         self.init_population_size = init_population_size
@@ -191,6 +200,7 @@ class GP:
                 fitness_function=self._fitness_function,
                 input_size=self.input_size,
                 parallelize=parallelize,
+                force_simplify=force_simplify,
             )
 
             assert (
@@ -210,7 +220,7 @@ class GP:
             if pbar:
                 pbar.update(1)
                 pbar.set_description(
-                    f"Unique individuals: {len(set(self.population)):<3}"
+                    f"Unique individuals: {len(set(self.population)):<3} - Best fitness: {self.best_fitness:.3e}"
                 )
             if self._stop_condition:
                 break
@@ -252,7 +262,7 @@ class GP:
 
     @property
     def best_fitness(self):
-        return self.best.fitness
+        return self._fitness_function(self.best)
 
     @property
     def best_tree(self):

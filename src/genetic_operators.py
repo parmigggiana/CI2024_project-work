@@ -14,7 +14,9 @@ log = logging.getLogger(__name__)
 class GeneticOperator(ABC):
     @classmethod
     @abstractmethod
-    def get_new_generation(cls, population, *, rng=None, **kwargs):
+    def get_new_generation(
+        cls, population, *, rng=None, force_simplify: bool = False, **kwargs
+    ):
         raise NotImplementedError(f"{cls.__name__} is not yet implemented.")
 
 
@@ -28,6 +30,7 @@ class Crossover(GeneticOperator):
         rng=None,
         reproduction_rate=2,
         parallelize=True,
+        force_simplify: bool,
         **kwargs,
     ):
         if rng is None:
@@ -83,7 +86,9 @@ class Crossover(GeneticOperator):
         return new_gen
 
     @classmethod
-    def cross_parents(cls, parent1, parent2, rng):
+    def cross_parents(
+        cls, parent1, parent2, rng, force_simplify: bool = False
+    ) -> tuple[Individual, Individual]:
         new_individual1 = parent1.clone()
         new_individual2 = parent2.clone()
 
@@ -107,13 +112,23 @@ class Crossover(GeneticOperator):
             node2_p.children.remove(node2)
             node2_p.append(node1)
 
+        if force_simplify:
+            new_individual1.simplify()
+            new_individual2.simplify()
         return new_individual1, new_individual2
 
 
 class Mutation(GeneticOperator):
     @classmethod
     def get_new_generation(
-        cls, population, *, mutation_rate=1, rng=None, parallelize=True, **kwargs
+        cls,
+        population,
+        *,
+        mutation_rate=1,
+        rng=None,
+        parallelize=True,
+        force_simplify: bool,
+        **kwargs,
     ):
         if rng is None:
             rng = np.random.default_rng(time.time_ns())
@@ -130,6 +145,7 @@ class Mutation(GeneticOperator):
                             np.random.default_rng(
                                 cls.rng.integers(0, np.iinfo(np.int32).max)
                             ),
+                            force_simplify,
                             **kwargs,
                         )
                 executor.shutdown(wait=True)
@@ -141,7 +157,13 @@ class Mutation(GeneticOperator):
         return new_gen
 
     @classmethod
-    def mutate(cls, individual: Individual, rng, **kwargs):
+    def mutate(cls, individual: Individual, rng, force_simplify=False, **kwargs):
+        cls._mutate(individual, rng, **kwargs)
+        if force_simplify:
+            individual.simplify()
+
+    @classmethod
+    def _mutate(cls, individual, rng, **kwargs):
         raise NotImplementedError(f"{cls.__name__} is not yet implemented.")
 
 
@@ -150,7 +172,7 @@ class SubtreeMutation(Mutation): ...
 
 class PointMutation(Mutation):
     @classmethod
-    def mutate(cls, individual, rng, input_size: int, **kwargs):
+    def _mutate(cls, individual, rng, input_size: int, **kwargs):
         node = rng.choice(individual.nodes)
         new_type = rng.choice(reverse_valid_children[valid_children[node.type]])
         node.type = new_type
@@ -162,7 +184,7 @@ class PointMutation(Mutation):
 
 class PermutationMutation(Mutation):
     @classmethod
-    def mutate(cls, individual, rng, **kwargs):
+    def _mutate(cls, individual, rng, **kwargs):
         valid_nodes = [
             node for node in individual.nodes if valid_children[node.type] == 2
         ]
@@ -175,7 +197,7 @@ class PermutationMutation(Mutation):
 
 class HoistMutation(Mutation):
     @classmethod
-    def mutate(cls, individual, rng, **kwargs):
+    def _mutate(cls, individual, rng, **kwargs):
         valid_nodes = [
             node for node in individual.nodes if valid_children[node.type] == 2
         ]

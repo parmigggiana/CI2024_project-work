@@ -23,7 +23,7 @@ from gp import GP
 
 sys.setrecursionlimit(2000)
 SEED = None
-PROBLEM = 1
+PROBLEM = 2
 
 POPULATION_SIZE = 50
 MAX_DEPTH = 4
@@ -53,18 +53,18 @@ if __name__ == "__main__":
 
     gp.add_before_loop_hook(lambda: print(f"Starting on problem {PROBLEM}"))
     gp.add_after_loop_hook(lambda: print(f"Finished on problem {PROBLEM}"))
-    gp.add_after_loop_hook(lambda: print(f"Best is {gp.best.simplify(x)}"))
+    gp.add_after_loop_hook(lambda: print(f"Best is {gp.best}"))
     gp.add_after_loop_hook(lambda: print(f"Found in {gp.generation} generations"))
     gp.add_after_loop_hook(
-        lambda: print(
-            f"MSE on training set: {np.mean((gp.best.simplify(x).f(x) - y) ** 2):.3e}"
-        )
+        lambda: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
+    gp.add_after_loop_hook(lambda: gp.best.simplify())
     gp.add_genetic_operator("xover", 0.9)
     gp.add_genetic_operator("point", 0.01)
-    gp.add_genetic_operator("permutation", 0.09)
+    gp.add_genetic_operator("hoist", 0.02)
+    gp.add_genetic_operator("permutation", 0.07)
     gp.set_parent_selector("fitness_proportional")
-    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (0.95, 0.05)))
+    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (0.99, 0.01)))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
 
@@ -72,17 +72,16 @@ if __name__ == "__main__":
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
-        parallelize=True,
+        parallelize=False,
+        force_simplify=True,
     )
 
     validation = np.load(f"tests/validation_{PROBLEM}.npz")
     x_val = validation["x"]
     y_val = validation["y"]
-    print(
-        f"MSE on validation set: {np.mean((gp.best.simplify(x).f(x_val) - y_val) ** 2):.3e}"
-    )
+    print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
 
     try:
-        gp.best.simplify(x).draw()
+        gp.best.draw()
     except KeyboardInterrupt:
         pass

@@ -114,7 +114,10 @@ class Individual:
     def depth(self):
         return max([n.depth for n in self.nodes])
 
-    def simplify(self, x):
-        if not hasattr(self, "simplified_root"):
-            self.simplified_root = self.root.simplify(x)
-        return self.simplified_root
+    def simplify(self):
+        if not hasattr(self, "simplified_root") or not self.simplified_root:
+            self.root = self.root.simplify()
+            self.simplified_root = True
+
+    def draw(self):
+        self.root.draw()
