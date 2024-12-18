@@ -154,7 +154,7 @@ class GP:
                 case _:
                     raise ValueError("Invalid niching operator")
             operator = operator.run
-        self.add_after_iter_hook(operator)
+        self.add_before_iter_hook(operator)
 
     @property
     def _tqdm_total(self):
@@ -180,7 +180,7 @@ class GP:
         self.init_population(init_population_size, init_max_depth, parallelize)
 
         for hook in self._before_loop_hooks:
-            hook()
+            hook(self)
 
         if self._tqdm:
             pbar = self._tqdm(total=self._tqdm_total)
@@ -189,7 +189,8 @@ class GP:
 
         for self.generation in range(1, max_generations + 1):
             for hook in self._before_iter_hooks:
-                hook()
+                hook(self)
+
             genetic_operator: GeneticOperator = self._rng.choice(
                 self._genetic_operators, p=self._genetic_operators_probs
             )
@@ -203,9 +204,9 @@ class GP:
                 force_simplify=force_simplify,
             )
 
-            assert (
-                new_gen is not None
-            ), f"Genetic operator {genetic_operator} did not generate any new individual"
+            # assert (
+            #     new_gen is not None
+            # ), f"Genetic operator {genetic_operator} did not generate any new individual"
 
             population = np.concatenate((self.population, new_gen), axis=0)
 
@@ -214,6 +215,7 @@ class GP:
                 size=self.population_size,
                 fitness_function=self._fitness_function,
             )
+            # ic([self._fitness_function(ind) for ind in self.population])
             for hook in self._after_iter_hooks:
                 hook(self)
 
@@ -222,8 +224,10 @@ class GP:
                 pbar.set_description(
                     f"Unique individuals: {len(set(self.population)):<3} - Best fitness: {self.best_fitness:.3e}"
                 )
+
             if self._stop_condition:
                 break
+
         pbar.close()
 
         for hook in self._after_loop_hooks:

@@ -23,11 +23,11 @@ from gp import GP
 
 sys.setrecursionlimit(2000)
 SEED = None
-PROBLEM = 2
+PROBLEM = 3
 
 POPULATION_SIZE = 50
-MAX_DEPTH = 4
-MAX_GENERATIONS = 500
+MAX_DEPTH = 5
+MAX_GENERATIONS = 5000
 
 
 def fitness(x, y, ind, weights: tuple):
@@ -51,20 +51,20 @@ if __name__ == "__main__":
     y = problem["y"]
     gp = GP(x, y, seed=SEED, use_tqdm=True)
 
-    gp.add_before_loop_hook(lambda: print(f"Starting on problem {PROBLEM}"))
-    gp.add_after_loop_hook(lambda: print(f"Finished on problem {PROBLEM}"))
-    gp.add_after_loop_hook(lambda: print(f"Best is {gp.best}"))
-    gp.add_after_loop_hook(lambda: print(f"Found in {gp.generation} generations"))
+    gp.add_before_loop_hook(lambda _: print(f"Starting on problem {PROBLEM}"))
+    gp.add_after_loop_hook(lambda _: print(f"Finished on problem {PROBLEM}"))
+    gp.add_after_loop_hook(lambda _: print(f"Best is {gp.best}"))
+    gp.add_after_loop_hook(lambda _: print(f"Found in {gp.generation} generations"))
     gp.add_after_loop_hook(
-        lambda: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
+        lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_after_loop_hook(lambda: gp.best.simplify())
+    gp.add_after_loop_hook(lambda _: gp.best.simplify())
     gp.add_genetic_operator("xover", 0.9)
     gp.add_genetic_operator("point", 0.01)
     gp.add_genetic_operator("hoist", 0.02)
     gp.add_genetic_operator("permutation", 0.07)
     gp.set_parent_selector("fitness_proportional")
-    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (0.99, 0.01)))
+    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (1, 0)))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
-        parallelize=False,
+        parallelize=True,
         force_simplify=True,
     )
 
