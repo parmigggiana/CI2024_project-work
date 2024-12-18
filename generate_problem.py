@@ -16,7 +16,7 @@ def true_f2(x: np.ndarray) -> np.ndarray:
 
 
 def true_f3(x: np.ndarray) -> np.ndarray:
-    return np.log(np.abs(x[0])) - np.exp(np.sin(x[1])) * x[2]
+    return np.log(np.abs(x[0])) - np.exp(np.sin(x[1])) * x[2] / 4
 
 
 TEST_SIZE = 10_000
@@ -28,7 +28,7 @@ def gen_problem(filename: str, true_f: callable):
         [
             np.random.random_sample(size=TEST_SIZE) * 2 * np.pi - np.pi,
             np.random.random_sample(size=TEST_SIZE) * 2 - 1,
-            np.random.random_sample(size=TEST_SIZE) * np.e,
+            np.random.random_sample(size=TEST_SIZE) * np.e * 10,
         ]
     )
     y_validation = true_f(x_validation)
