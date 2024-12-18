@@ -23,11 +23,11 @@ from gp import GP
 
 sys.setrecursionlimit(2000)
 SEED = None
-PROBLEM = 3
+PROBLEM = 2
 
 POPULATION_SIZE = 50
 MAX_DEPTH = 5
-MAX_GENERATIONS = 5000
+MAX_GENERATIONS = 2000
 
 
 def fitness(x, y, ind, weights: tuple):
@@ -43,6 +43,19 @@ def fitness(x, y, ind, weights: tuple):
         return 0
 
     return fitness
+
+
+def early_stop(gp: GP, window: int, threshold: float):
+    # if the rate of change of the best fitness in the last window generations
+    # is lower than threshold
+    # set gp._stop_condition = True
+    if gp.generation <= window:
+        return
+    best_history = gp.history[gp.generation - window - 1 : gp.generation - 1].max(
+        axis=-1
+    )
+    if best_history[-1] / best_history[0] < threshold:
+        gp._stop_condition = True
 
 
 if __name__ == "__main__":
@@ -67,6 +80,7 @@ if __name__ == "__main__":
     gp.set_fitness_function(lambda ind: fitness(x, y, ind, (1, 0)))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
+    gp.add_after_iter_hook(lambda gp: early_stop(gp, 100, 1 + 1e-3))
 
     gp.run(
         init_population_size=POPULATION_SIZE,
@@ -82,6 +96,7 @@ if __name__ == "__main__":
     print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
 
     try:
-        gp.best.draw()
+        gp.best.draw(block=False)
+        gp.plot()
     except KeyboardInterrupt:
         pass
