@@ -279,6 +279,23 @@ class Node:
             )
             simplified_root.children[1] = simplified_root.children[1].children[1]
 
+        # abs(abs(a)) -> abs(a)
+        if (
+            simplified_root.type == NodeType.ABS
+            and simplified_root.children[0].type == NodeType.ABS
+        ):
+            simplified_root = simplified_root.children[0]
+
+        # log(exp(a)) or exp(log(a)) -> a
+        if (
+            simplified_root.type == NodeType.LOG
+            and simplified_root.children[0].type == NodeType.EXP
+        ) or (
+            simplified_root.type == NodeType.EXP
+            and simplified_root.children[0].type == NodeType.LOG
+        ):
+            simplified_root = simplified_root.children[0].children[0]
+
         # Reset depths and parents
         nodes = [simplified_root]
         while nodes:
@@ -290,7 +307,7 @@ class Node:
 
         return simplified_root
 
-    def draw(self):
+    def draw(self, block: bool = True):
         import matplotlib.pyplot as plt
 
         fig = plt.figure()
@@ -343,4 +360,4 @@ class Node:
                 x1, y1 = coords[id(node)]
                 ax.plot([x0, x1], [y0, y1], color="black")
 
-        plt.show()
+        plt.show(block=block)
