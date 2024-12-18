@@ -178,7 +178,7 @@ class GP:
         self.max_generations = max_generations
         self.population = np.empty(shape=(init_population_size,), dtype=Individual)
         self.init_population(init_population_size, init_max_depth, parallelize)
-
+        self.history = np.empty((max_generations, self.population_size), dtype=float)
         for hook in self._before_loop_hooks:
             hook(self)
 
@@ -219,6 +219,10 @@ class GP:
             for hook in self._after_iter_hooks:
                 hook(self)
 
+            self.history[self.generation - 1] = np.array(
+                [self._fitness_function(ind) for ind in self.population]
+            )
+
             if pbar:
                 pbar.update(1)
                 pbar.set_description(
@@ -231,7 +235,7 @@ class GP:
         pbar.close()
 
         for hook in self._after_loop_hooks:
-            hook()
+            hook(self)
 
     def init_population(self, population_size, max_depth, parallelize=True):
         if parallelize:
@@ -259,6 +263,25 @@ class GP:
                     input_size=self.input_size,
                     rng=self._rng,
                 )
+
+    def plot(self, block: bool = True):
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        for gen in np.arange(self.generation - 1):
+            plt.scatter(
+                x=[gen] * self.population_size,
+                y=self.history[gen],
+                label="Fitness",
+                alpha=0.2,
+                c="blue",
+            )
+        plt.plot(
+            self.history[: self.generation - 1].max(axis=-1),
+            label="Best fitness",
+            color="red",
+        )
+        plt.show(block=block)
 
     @property
     def best(self):
