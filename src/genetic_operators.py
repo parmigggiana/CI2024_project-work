@@ -64,6 +64,7 @@ class Crossover(GeneticOperator):
                             np.random.default_rng(
                                 cls.rng.integers(0, np.iinfo(np.int32).max)
                             ),
+                            force_simplify,
                         )
                     )
                 i = 0
@@ -78,7 +79,7 @@ class Crossover(GeneticOperator):
                 parent1, parent2 = cls.rng.choice(parents, size=2, replace=False)
 
                 new_individual1, new_individual2 = cls.cross_parents(
-                    parent1, parent2, cls.rng
+                    parent1, parent2, cls.rng, force_simplify
                 )
 
                 new_gen[i] = new_individual1

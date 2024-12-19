@@ -3,23 +3,15 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
-from genetic_operators import (
-    CollapseMutation,
-    Crossover,
-    ExpansionMutation,
-    GeneticOperator,
-    HoistMutation,
-    PermutationMutation,
-    PointMutation,
-    SubtreeMutation,
-)
+from genetic_operators import (CollapseMutation, Crossover, ExpansionMutation,
+                               GeneticOperator, HoistMutation,
+                               PermutationMutation, PointMutation,
+                               SubtreeMutation)
 from individual import Individual
 from niching import Extinction
-from population_selectors import (
-    DeterministicSelector,
-    FitnessProportionalSelector,
-    TournamentSelector,
-)
+from population_selectors import (DeterministicSelector,
+                                  FitnessProportionalSelector,
+                                  TournamentSelector)
 
 log = logging.getLogger(__name__)
 
@@ -31,13 +23,11 @@ class GP:
         y: np.ndarray,
         *,
         seed=1,
-        use_tqdm=True,
     ):
         self.x = x
         self.y = y
         self.input_size = x.shape[0]
         self._rng = np.random.default_rng(seed)
-        self._tqdm = use_tqdm
         self._before_loop_hooks = []
         self._after_loop_hooks = []
         self._before_iter_hooks = []
@@ -49,11 +39,6 @@ class GP:
         self._fitness_function = None
         self._stop_condition = False
         self.individuals_fitness = {}
-
-        if self._tqdm:
-            from tqdm import tqdm
-
-            self._tqdm = tqdm
 
     def add_before_loop_hook(self, hook):
         self._before_loop_hooks.append(hook)
@@ -166,11 +151,12 @@ class GP:
 
     def run(
         self,
-        init_population_size=10,
-        init_max_depth=4,
-        max_generations=100,
-        parallelize=True,
-        force_simplify=False,
+        init_population_size: int = 10,
+        init_max_depth: int = 4,
+        max_generations: int = 100,
+        parallelize: bool = True,
+        force_simplify: bool = False,
+        use_tqdm: bool = True,
     ):
 
         self.init_population_size = init_population_size
@@ -179,13 +165,14 @@ class GP:
         self.population = np.empty(shape=(init_population_size,), dtype=Individual)
         self.init_population(init_population_size, init_max_depth, parallelize)
         self.history = np.empty((max_generations, self.population_size), dtype=float)
+        if use_tqdm:
+            from tqdm import tqdm
+
         for hook in self._before_loop_hooks:
             hook(self)
 
-        if self._tqdm:
-            pbar = self._tqdm(total=self._tqdm_total)
-        else:
-            pbar = None
+        if use_tqdm:
+            pbar = tqdm(total=self._tqdm_total)
 
         for self.generation in range(1, max_generations + 1):
             for hook in self._before_iter_hooks:
@@ -204,9 +191,9 @@ class GP:
                 force_simplify=force_simplify,
             )
 
-            # assert (
-            #     new_gen is not None
-            # ), f"Genetic operator {genetic_operator} did not generate any new individual"
+            assert (
+                new_gen is not None
+            ), f"Genetic operator {genetic_operator} did not generate any new individual"
 
             population = np.concatenate((self.population, new_gen), axis=0)
 
@@ -223,7 +210,7 @@ class GP:
                 [self._fitness_function(ind) for ind in self.population]
             )
 
-            if pbar:
+            if use_tqdm:
                 pbar.update(1)
                 pbar.set_description(
                     f"Unique individuals: {len(set(self.population)):<3} - Best fitness: {self.best_fitness:.3e}"
@@ -232,7 +219,8 @@ class GP:
             if self._stop_condition:
                 break
 
-        pbar.close()
+        if use_tqdm:
+            pbar.close()
 
         for hook in self._after_loop_hooks:
             hook(self)

@@ -173,6 +173,12 @@ class Node:
         self._children.append(child)
         child.parent = self
         child.depth = self.depth + 1
+        nodes = self.children.copy()
+        while nodes:
+            node = nodes.pop()
+            for child in node.children:
+                child.depth = node.depth + 1
+                nodes.append(child)
 
     def __hash__(self) -> int:
         return hash(str(self))
@@ -195,16 +201,17 @@ class Node:
         if len(simplified_root._children) > 0 and all(
             child.type == NodeType.CONSTANT for child in simplified_root._children
         ):
-            simplified_root = Node(NodeType.CONSTANT, value=simplified_root.f(None))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                simplified_root = Node(NodeType.CONSTANT, value=simplified_root.f(None))
 
         # Commutative
         # make sure the variable is on the right
-        if simplified_root.type in [NodeType.ADD, NodeType.MUL]:
-            if (
-                simplified_root.children[0].type != NodeType.CONSTANT
-                and simplified_root.children[1].type == NodeType.CONSTANT
-            ):
-                simplified_root._children = simplified_root.children[::-1]
+        if (
+            simplified_root.type in [NodeType.ADD, NodeType.MUL]
+            and simplified_root.children[0].type != NodeType.CONSTANT
+            and simplified_root.children[1].type == NodeType.CONSTANT
+        ):
+            simplified_root._children = simplified_root.children[::-1]
 
         # 1.24 - 1.24 OR x[0] - x[0] -> 0
         if (
@@ -307,16 +314,20 @@ class Node:
 
         return simplified_root
 
-    def draw(self, block: bool = True):
+    def draw(self, block: bool = True, ax=None):
         import matplotlib.pyplot as plt
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.yaxis.set_visible(False)
-        ax.xaxis.set_visible(False)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        ax.set_title(self)
+        if ax is None:
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.yaxis.set_visible(False)
+            ax.xaxis.set_visible(False)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            ax.set_title(self)
+        else:
+            ax.set_title(self)
+
         # Iterate over the nodes and create a list ordered by depth
         draw_nodes = np.empty(shape=(max([n.depth for n in self.flatten]),), dtype=list)
         for node in self.flatten:
@@ -360,4 +371,5 @@ class Node:
                 x1, y1 = coords[id(node)]
                 ax.plot([x0, x1], [y0, y1], color="black")
 
-        plt.show(block=block)
+        if ax is None:
+            plt.show(block=block)

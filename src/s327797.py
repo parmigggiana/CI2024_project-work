@@ -15,54 +15,26 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 
 import sys
-import warnings
 
 import numpy as np
 
 from gp import GP
+from util_functions import early_stop, fitness, live_plot
 
-sys.setrecursionlimit(2000)
+# sys.setrecursionlimit(2000)
 SEED = None
 PROBLEM = 2
 
-POPULATION_SIZE = 50
+POPULATION_SIZE = 40
 MAX_DEPTH = 5
 MAX_GENERATIONS = 2000
-
-
-def fitness(x, y, ind, weights: tuple):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        try:
-            mse = np.mean((ind.f(x) - y) ** 2)
-        except ZeroDivisionError:
-            return 0
-    fitness = weights[0] / mse - weights[1] * ind.depth
-
-    if np.isnan(fitness) or np.isinf(fitness):
-        return 0
-
-    return fitness
-
-
-def early_stop(gp: GP, window: int, threshold: float):
-    # if the rate of change of the best fitness in the last window generations
-    # is lower than threshold
-    # set gp._stop_condition = True
-    if gp.generation <= window:
-        return
-    best_history = gp.history[gp.generation - window - 1 : gp.generation - 1].max(
-        axis=-1
-    )
-    if best_history[-1] / best_history[0] < threshold:
-        gp._stop_condition = True
 
 
 if __name__ == "__main__":
     problem = np.load(f"tests/problem_{PROBLEM}.npz")
     x = problem["x"]
     y = problem["y"]
-    gp = GP(x, y, seed=SEED, use_tqdm=True)
+    gp = GP(x, y, seed=SEED)
 
     gp.add_before_loop_hook(lambda _: print(f"Starting on problem {PROBLEM}"))
     gp.add_after_loop_hook(lambda _: print(f"Finished on problem {PROBLEM}"))
@@ -71,23 +43,24 @@ if __name__ == "__main__":
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_after_loop_hook(lambda _: gp.best.simplify())
+    # gp.add_after_loop_hook(lambda _: gp.best.simplify())
     gp.add_genetic_operator("xover", 0.9)
-    gp.add_genetic_operator("point", 0.01)
-    gp.add_genetic_operator("hoist", 0.02)
-    gp.add_genetic_operator("permutation", 0.07)
+    gp.add_genetic_operator("point", 0.03)
+    gp.add_genetic_operator("hoist", 0.03)
+    gp.add_genetic_operator("permutation", 0.04)
     gp.set_parent_selector("fitness_proportional")
-    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (1, 0)))
+    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (0.95, 0.05)))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: early_stop(gp, 100, 1 + 1e-3))
-
+    gp.add_after_iter_hook(lambda gp: early_stop(gp, 200, 1 + 1e-5))
+    gp.add_after_iter_hook(lambda gp: live_plot(gp, 10))
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
         parallelize=True,
         force_simplify=True,
+        use_tqdm=True,
     )
 
     validation = np.load(f"tests/validation_{PROBLEM}.npz")
