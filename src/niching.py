@@ -14,11 +14,13 @@ class Extinction(NichingStrategy):
     @classmethod
     def run(cls, gp, **kwargs):
         unique = set(gp.population)
-        if len(unique) <= 2:
+        if len(unique) <= 1:
             log.info("Extinction event occurred. Reinitializing population.")
             for i, ind in enumerate(unique, 1):
                 gp.population[-i] = ind
-            gp.init_population(gp.population_size - len(unique), gp.init_max_depth)
+            gp.init_population(
+                gp.population_size - len(unique), gp.init_max_depth, gp.parallelize
+            )
 
 
 class Island(NichingStrategy): ...

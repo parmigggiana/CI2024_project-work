@@ -3,15 +3,23 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
-from genetic_operators import (CollapseMutation, Crossover, ExpansionMutation,
-                               GeneticOperator, HoistMutation,
-                               PermutationMutation, PointMutation,
-                               SubtreeMutation)
+from genetic_operators import (
+    CollapseMutation,
+    Crossover,
+    ExpansionMutation,
+    GeneticOperator,
+    HoistMutation,
+    PermutationMutation,
+    PointMutation,
+    SubtreeMutation,
+)
 from individual import Individual
 from niching import Extinction
-from population_selectors import (DeterministicSelector,
-                                  FitnessProportionalSelector,
-                                  TournamentSelector)
+from population_selectors import (
+    DeterministicSelector,
+    FitnessProportionalSelector,
+    TournamentSelector,
+)
 
 log = logging.getLogger(__name__)
 
@@ -165,6 +173,8 @@ class GP:
         self.population = np.empty(shape=(init_population_size,), dtype=Individual)
         self.init_population(init_population_size, init_max_depth, parallelize)
         self.history = np.empty((max_generations, self.population_size), dtype=float)
+        self.parallelize = parallelize
+
         if use_tqdm:
             from tqdm import tqdm
 

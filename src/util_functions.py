@@ -50,11 +50,11 @@ def live_plot(gp: GP, mod: int = 1):
         live_plot.axes = live_plot.axes.flatten()
     else:
         live_plot.fig.clear()
-        live_plot.axes = live_plot.fig.subplots(rows, cols)
-        live_plot.axes = live_plot.axes.flatten()
-        live_plot.fig.suptitle(f"Generation {gp.generation}")
+        live_plot.axes = np.array(live_plot.fig.subplots(rows, cols)).flatten()
         for ax in live_plot.axes:
             ax.clear()
+
+    live_plot.fig.suptitle(f"Generation {gp.generation}")
 
     for ax in live_plot.axes[num_unique:]:
         ax.axis("off")

@@ -104,7 +104,10 @@ class Node:
             case NodeType.MUL:
                 return self._children[0].f(x) * self._children[1].f(x)
             case NodeType.DIV:
-                return self._children[0].f(x) / self._children[1].f(x)
+                try:
+                    return self._children[0].f(x) / self._children[1].f(x)
+                except ZeroDivisionError:
+                    return np.inf
             case NodeType.SIN:
                 return np.sin(self._children[0].f(x))
             case NodeType.COS:
@@ -204,14 +207,14 @@ class Node:
             with np.errstate(divide="ignore", invalid="ignore"):
                 simplified_root = Node(NodeType.CONSTANT, value=simplified_root.f(None))
 
-        # Commutative
-        # make sure the variable is on the right
-        if (
-            simplified_root.type in [NodeType.ADD, NodeType.MUL]
-            and simplified_root.children[0].type != NodeType.CONSTANT
-            and simplified_root.children[1].type == NodeType.CONSTANT
-        ):
-            simplified_root._children = simplified_root.children[::-1]
+        # Enforce order to avoid symmetrical trees
+        # For commutative operations, enforce left.type > right.type
+        if simplified_root.type in [NodeType.ADD, NodeType.MUL]:
+            left, right = simplified_root._children
+            if left.type.value > right.type.value or (
+                left.type == right.type and left.value < right.value
+            ):
+                simplified_root._children = [right, left]
 
         # 1.24 - 1.24 OR x[0] - x[0] -> 0
         if (
@@ -267,7 +270,7 @@ class Node:
         if (
             simplified_root.type == NodeType.MUL
             and simplified_root._children[0].type == NodeType.CONSTANT
-            and simplified_root._children[0].value == 0
+            and simplified_root._children[0].value <= 1e-6
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
 

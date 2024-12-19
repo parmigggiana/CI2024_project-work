@@ -25,7 +25,7 @@ from util_functions import early_stop, fitness, live_plot
 SEED = None
 PROBLEM = 2
 
-POPULATION_SIZE = 40
+POPULATION_SIZE = 50
 MAX_DEPTH = 5
 MAX_GENERATIONS = 2000
 
@@ -49,11 +49,11 @@ if __name__ == "__main__":
     gp.add_genetic_operator("hoist", 0.03)
     gp.add_genetic_operator("permutation", 0.04)
     gp.set_parent_selector("fitness_proportional")
-    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (0.95, 0.05)))
+    gp.set_fitness_function(lambda ind: fitness(x, y, ind, (0.9, 0.1)))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
     gp.add_after_iter_hook(lambda gp: early_stop(gp, 200, 1 + 1e-5))
-    gp.add_after_iter_hook(lambda gp: live_plot(gp, 10))
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 20))
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
