@@ -209,12 +209,7 @@ class Node:
 
         # Enforce order to avoid symmetrical trees
         # For commutative operations, enforce left.type > right.type
-        if simplified_root.type in [NodeType.ADD, NodeType.MUL]:
-            left, right = simplified_root._children
-            if left.type.value > right.type.value or (
-                left.type == right.type and left.value < right.value
-            ):
-                simplified_root._children = [right, left]
+        enforce_order(simplified_root)
 
         # 1.24 - 1.24 OR x[0] - x[0] -> 0
         if (
@@ -227,26 +222,63 @@ class Node:
             and simplified_root._children[0].value == simplified_root._children[1].value
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
+            enforce_order(simplified_root)
 
-        # 0 + a -> a
+        # x - x -> 0
+        # a - a -> 0
+        if (
+            simplified_root.type == NodeType.SUB
+            and simplified_root.children[0].type in [NodeType.VARIABLE, NodeType.CONSTANT]
+            and simplified_root.children[0].type == simplified_root.children[1].type
+            and -1e-6 <= simplified_root.children[0].value - simplified_root.children[1].value <= 1e-6
+        ):
+            simplified_root = Node(NodeType.CONSTANT, value=0)
+            enforce_order(simplified_root)
+
+        # x / x -> 1
+        # a / a -> 1
+        if (
+            simplified_root.type == NodeType.DIV
+            and simplified_root._children[0].type in [NodeType.VARIABLE, NodeType.CONSTANT]
+            and simplified_root._children[0].type == simplified_root._children[1].type
+            and -1e-6 <= simplified_root._children[0].value - simplified_root._children[1].value <= 1e-6
+        ):
+            simplified_root = Node(NodeType.CONSTANT, value=1)
+            enforce_order(simplified_root)
+
+        # a + 0 -> a
         if (
             simplified_root.type == NodeType.ADD
-            and simplified_root._children[0].type == NodeType.CONSTANT
-            and simplified_root._children[0].value == 0
+            and simplified_root._children[1].type == NodeType.CONSTANT
+            and -1e-6 <= simplified_root._children[1].value <= 1e-6
         ):
-            simplified_root.type = simplified_root._children[1].type
-            simplified_root.value = simplified_root._children[1].value
-            simplified_root._children = simplified_root._children[1].children
+            simplified_root.type = simplified_root._children[0].type
+            simplified_root.value = simplified_root._children[0].value
+            simplified_root._children = simplified_root._children[0].children
+            enforce_order(simplified_root)
 
-        # 1 * a -> a
+        # a - 0 -> a
+        # x - 0 -> x
+        if (
+            simplified_root.type == NodeType.SUB
+            and simplified_root._children[1].type == NodeType.CONSTANT
+            and -1e-6 <= simplified_root._children[1].value <= 1e-6
+        ):
+            simplified_root.type = simplified_root._children[0].type
+            simplified_root.value = simplified_root._children[0].value
+            simplified_root._children = simplified_root._children[0].children
+            enforce_order(simplified_root)
+
+        # a * 1 -> a
         if (
             simplified_root.type == NodeType.MUL
-            and simplified_root._children[0].type == NodeType.CONSTANT
-            and simplified_root._children[0].value == 1
+            and simplified_root._children[1].type == NodeType.CONSTANT
+            and -1e-6 <= simplified_root._children[1].value - 1 <= 1e-6
         ):
-            simplified_root.type = simplified_root._children[1].type
-            simplified_root.value = simplified_root._children[1].value
-            simplified_root._children = simplified_root._children[1].children
+            simplified_root.type = simplified_root._children[0].type
+            simplified_root.value = simplified_root._children[0].value
+            simplified_root._children = simplified_root._children[0].children
+            enforce_order(simplified_root)
 
         # a / 1 -> a
         if (
@@ -257,6 +289,7 @@ class Node:
             simplified_root.type = simplified_root._children[0].type
             simplified_root.value = simplified_root._children[0].value
             simplified_root._children = simplified_root._children[0].children
+            enforce_order(simplified_root)
 
         # 0 / a -> 0
         if (
@@ -265,14 +298,16 @@ class Node:
             and simplified_root._children[0].value == 0
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
+            enforce_order(simplified_root)
 
         # 0 * a -> 0
         if (
             simplified_root.type == NodeType.MUL
             and simplified_root._children[0].type == NodeType.CONSTANT
-            and simplified_root._children[0].value <= 1e-6
+            and -1e-6 <= simplified_root._children[0].value <= 1e-6
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
+            enforce_order(simplified_root)
 
         # a + (b + x) -> [a+b] + x
         # a + (b - x) -> [a+b] - x
@@ -288,6 +323,23 @@ class Node:
                 + simplified_root.children[1].children[0].value
             )
             simplified_root.children[1] = simplified_root.children[1].children[1]
+            enforce_order(simplified_root)
+
+        # a * (b * x) -> [a*b] * x
+        # a * (b / x) -> [a*b] / x
+        if (
+            simplified_root.type == NodeType.MUL
+            and simplified_root.children[1].type == NodeType.CONSTANT
+            and simplified_root.children[0].type in [NodeType.MUL, NodeType.DIV]
+            and simplified_root.children[0].children[0].type == NodeType.CONSTANT
+        ):
+            simplified_root.type = simplified_root.children[0].type
+            simplified_root.children[0].value = (
+                simplified_root.children[1].value
+                * simplified_root.children[1].children[0].value
+            )
+            simplified_root.children[1] = simplified_root.children[0].children[1]
+            enforce_order(simplified_root)
 
         # abs(abs(a)) -> abs(a)
         if (
@@ -305,6 +357,7 @@ class Node:
             and simplified_root.children[0].type == NodeType.LOG
         ):
             simplified_root = simplified_root.children[0].children[0]
+            enforce_order(simplified_root)
 
         # Reset depths and parents
         nodes = [simplified_root]
@@ -376,3 +429,11 @@ class Node:
 
         if ax is None:
             plt.show(block=block)
+
+def enforce_order(root):
+    if root.type in [NodeType.ADD, NodeType.MUL]:
+        left, right = root._children
+        if left.type.value > right.type.value or (
+            left.type == right.type and left.value < right.value
+        ):
+            root._children = [right, left]
