@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from gp import GP
-from model import NodeType, syms
 
 
 def fitness(x, y, ind, weights: tuple):
@@ -15,8 +14,7 @@ def fitness(x, y, ind, weights: tuple):
         except ZeroDivisionError:
             return 0
     fitness = weights[0] / mse - weights[1] * ind.depth
-
-    if np.isnan(fitness) or np.isinf(fitness):
+    if np.isnan(fitness) or np.isinf(fitness) or fitness < 0:
         return 0
 
     return fitness
