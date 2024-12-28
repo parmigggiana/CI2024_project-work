@@ -26,7 +26,10 @@ PROBLEM = 0
 
 POPULATION_SIZE = 500
 MAX_DEPTH = 5
+
 MAX_GENERATIONS = 2000
+EARLY_STOP_WINDOW_SIZE = 600
+
 
 filename = f"data/problem_{PROBLEM}.npz"
 
@@ -62,10 +65,10 @@ if __name__ == "__main__":
     gp.add_genetic_operator("hoist", 0.06)
     gp.add_genetic_operator("permutation", 0.08)
     gp.set_parent_selector("fitness_proportional")
-    gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind, (0.9, 0.1)))
+    gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: early_stop(gp, 600, 1 + 1e-5))
+    gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
     # gp.add_after_iter_hook(lambda gp: live_plot(gp, 2))
     gp.run(
         init_population_size=POPULATION_SIZE,

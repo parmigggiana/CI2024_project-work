@@ -119,5 +119,5 @@ class Individual:
             self.root = self.root.simplify()
             self.simplified_root = True
 
-    def draw(self, block=True):
-        self.root.draw(block)
+    def draw(self, block=True, ax=None):
+        self.root.draw(block=block, ax=ax)
