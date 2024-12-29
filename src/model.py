@@ -329,16 +329,16 @@ class Node:
         # a * (b / x) -> [a*b] / x
         if (
             simplified_root.type == NodeType.MUL
-            and simplified_root.children[1].type == NodeType.CONSTANT
-            and simplified_root.children[0].type in [NodeType.MUL, NodeType.DIV]
-            and simplified_root.children[0].children[0].type == NodeType.CONSTANT
+            and simplified_root.children[0].type == NodeType.CONSTANT
+            and simplified_root.children[1].type in [NodeType.MUL, NodeType.DIV]
+            and simplified_root.children[1].children[0].type == NodeType.CONSTANT
         ):
-            simplified_root.type = simplified_root.children[0].type
+            simplified_root.type = simplified_root.children[1].type
             simplified_root.children[0].value = (
-                simplified_root.children[1].value
+                simplified_root.children[0].value
                 * simplified_root.children[1].children[0].value
             )
-            simplified_root.children[1] = simplified_root.children[0].children[1]
+            simplified_root.children[1] = simplified_root.children[1].children[1]
             enforce_order(simplified_root)
 
         # abs(abs(a)) -> abs(a)
