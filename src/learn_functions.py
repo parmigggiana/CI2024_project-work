@@ -18,7 +18,7 @@ import sys
 import numpy as np
 
 from gp import GP
-from util_functions import early_stop, fitness, live_plot, visualize_data, visualize_result
+from util_functions import change_exploitation_bias, early_stop, fitness, live_plot, visualize_data, visualize_result
 
 sys.setrecursionlimit(5000)
 SEED = 42
@@ -60,14 +60,15 @@ if __name__ == "__main__":
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_genetic_operator("xover", 0.8)
-    gp.add_genetic_operator("point", 0.06)
-    gp.add_genetic_operator("hoist", 0.06)
-    gp.add_genetic_operator("permutation", 0.08)
+    gp.add_exploitation_operator("xover", 30)
+    gp.add_exploration_operator("point", 1)
+    gp.add_exploration_operator("hoist", 1)
+    gp.add_exploration_operator("permutation", 2)
     gp.set_parent_selector("fitness_proportional")
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
+    gp.add_after_iter_hook(lambda gp: change_exploitation_bias(gp, 10, 1.02))
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
     # gp.add_after_iter_hook(lambda gp: live_plot(gp, 2))
     gp.run(

@@ -1,3 +1,4 @@
+from functools import cached_property
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -40,13 +41,25 @@ class GP:
         self._after_loop_hooks = []
         self._before_iter_hooks = []
         self._after_iter_hooks = []
-        self._genetic_operators = []
-        self._genetic_operators_probs = []
         self._survivor_selector = None
         self._parent_selector = []
         self._fitness_function = None
         self._stop_condition = False
         self.individuals_fitness = {}
+        self._exploitation_bias = 0.5
+        self.reset_genetic_operators()
+
+    @property
+    def _genetic_operators(self):
+        return self._exploration_operators + self._exploitation_operators
+
+    @cached_property
+    def __genetic_operators_weights(self):
+        return np.concatenate([(1-self._exploitation_bias)*np.array(self._exploration_operators_weights), self._exploitation_bias*np.array(self._exploitation_operators_weights)])
+
+    @cached_property
+    def _genetic_operators_probs(self):
+        return self.__genetic_operators_weights / np.sum(self.__genetic_operators_weights)
 
     def add_before_loop_hook(self, hook):
         self._before_loop_hooks.append(hook)
@@ -72,7 +85,29 @@ class GP:
     def reset_after_iter_hooks(self):
         self._after_iter_hooks = []
 
-    def add_genetic_operator(self, genetic_operator, probability):
+    def clear_chached_properties(self):
+        try:
+            delattr(self, "__genetic_operators_weights")
+        except AttributeError:
+            pass
+        try:
+            delattr(self, "_genetic_operators_probs")
+        except AttributeError:
+            pass
+
+    def add_exploitation_operator(self, genetic_operator, weight):
+        op = self.get_genetic_operator(genetic_operator)
+        self._exploitation_operators.append(op)
+        self._exploitation_operators_weights.append(weight)
+        self.clear_chached_properties()
+
+    def add_exploration_operator(self, genetic_operator, weight):
+        op = self.get_genetic_operator(genetic_operator)
+        self._exploration_operators.append(op)
+        self._exploration_operators_weights.append(weight)
+        self.clear_chached_properties()
+
+    def get_genetic_operator(self, genetic_operator):
         if isinstance(genetic_operator, str):
             match genetic_operator:
                 case "point":
@@ -91,14 +126,20 @@ class GP:
                     genetic_operator = Crossover
                 case _:
                     raise ValueError("Invalid genetic operator")
-            genetic_operator = genetic_operator.get_new_generation
 
-        self._genetic_operators.append(genetic_operator)
-        self._genetic_operators_probs.append(probability)
+        if issubclass(genetic_operator, GeneticOperator):
+            genetic_operator = genetic_operator.get_new_generation
+        elif not callable(genetic_operator):
+            raise ValueError("Invalid genetic operator")
+
+        return genetic_operator
 
     def reset_genetic_operators(self):
-        self._genetic_operators = []
-        self._genetic_operators_probs = []
+        self._exploration_operators = []
+        self._exploitation_operators = []
+        self._exploration_operators_weights = []
+        self._exploitation_operators_weights = []
+        self.clear_chached_properties()
 
     def set_survivor_selector(self, selector):
         if isinstance(selector, str):
@@ -212,7 +253,7 @@ class GP:
                 size=self.population_size,
                 fitness_function=self._fitness_function,
             )
-            # ic([self._fitness_function(ind) for ind in self.population])
+
             for hook in self._after_iter_hooks:
                 hook(self)
 

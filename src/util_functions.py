@@ -6,7 +6,7 @@ import numpy as np
 from gp import GP
 
 
-def fitness(x, y, ind, weights: tuple):
+def fitness(x, y, ind):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         try:
@@ -102,3 +102,9 @@ def visualize_result(x, y, f, block=None):
         ax.plot_surface(X[0], X[1], f(X), alpha=0.5, color='r')
     fig.colorbar(scatter, ax=ax, label='Distance from predicted value')
     plt.show(block=block)
+
+def change_exploitation_bias(gp: GP, mod: int = 1, factor: float = 1.01):
+    if gp.generation % mod != 0:
+        return
+
+    gp._exploitation_bias *= factor
