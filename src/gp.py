@@ -54,12 +54,17 @@ class GP:
         return self._exploration_operators + self._exploitation_operators
 
     @cached_property
-    def __genetic_operators_weights(self):
-        return np.concatenate([(1-self._exploitation_bias)*np.array(self._exploration_operators_weights), self._exploitation_bias*np.array(self._exploitation_operators_weights)])
+    def _genetic_operators_base_weights(self):
+        return np.concatenate([np.array(self._exploration_operators_weights), np.array(self._exploitation_operators_weights)])
+
+    @cached_property
+    def __bias(self):
+        return np.array([1-self._exploitation_bias]*len(self._exploration_operators_weights) + [self._exploitation_bias]*len(self._exploitation_operators_weights))
 
     @cached_property
     def _genetic_operators_probs(self):
-        return self.__genetic_operators_weights / np.sum(self.__genetic_operators_weights)
+        weights = self._genetic_operators_base_weights * self.__bias
+        return weights / np.sum(weights)
 
     def add_before_loop_hook(self, hook):
         self._before_loop_hooks.append(hook)
@@ -85,27 +90,35 @@ class GP:
     def reset_after_iter_hooks(self):
         self._after_iter_hooks = []
 
-    def clear_chached_properties(self):
+    def clear_cache(self, property_name):
         try:
-            delattr(self, "__genetic_operators_weights")
+            delattr(self, property_name)
         except AttributeError:
             pass
-        try:
-            delattr(self, "_genetic_operators_probs")
-        except AttributeError:
-            pass
+
+    def change_exploitation_bias(self, mod: int = 1, factor: float = 1.01):
+        if self.generation % mod != 0:
+            return
+
+        self._exploitation_bias *= factor
+        self.clear_cache("__bias")
+        self.clear_cache("_genetic_operators_probs")
 
     def add_exploitation_operator(self, genetic_operator, weight):
         op = self.get_genetic_operator(genetic_operator)
         self._exploitation_operators.append(op)
         self._exploitation_operators_weights.append(weight)
-        self.clear_chached_properties()
+        self.clear_cache("_genetic_operators_base_weights")
+        self.clear_cache("__bias")
+        self.clear_cache("_genetic_operators_probs")
 
     def add_exploration_operator(self, genetic_operator, weight):
         op = self.get_genetic_operator(genetic_operator)
         self._exploration_operators.append(op)
         self._exploration_operators_weights.append(weight)
-        self.clear_chached_properties()
+        self.clear_cache("_genetic_operators_base_weights")
+        self.clear_cache("__bias")
+        self.clear_cache("_genetic_operators_probs")
 
     def get_genetic_operator(self, genetic_operator):
         if isinstance(genetic_operator, str):
@@ -139,7 +152,9 @@ class GP:
         self._exploitation_operators = []
         self._exploration_operators_weights = []
         self._exploitation_operators_weights = []
-        self.clear_chached_properties()
+        self.clear_cache("_genetic_operators_base_weights")
+        self.clear_cache("__bias")
+        self.clear_cache("_genetic_operators_probs")
 
     def set_survivor_selector(self, selector):
         if isinstance(selector, str):

@@ -18,7 +18,7 @@ import sys
 import numpy as np
 
 from gp import GP
-from util_functions import change_exploitation_bias, early_stop, fitness, live_plot, visualize_data, visualize_result
+from util_functions import  early_stop, fitness, live_plot, visualize_data, visualize_result
 
 sys.setrecursionlimit(5000)
 SEED = 42
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: change_exploitation_bias(gp, 10, 1.02))
+    gp.add_after_iter_hook(lambda gp: gp.change_exploitation_bias(10, 1.02))
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
     # gp.add_after_iter_hook(lambda gp: live_plot(gp, 2))
     gp.run(
