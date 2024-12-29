@@ -223,3 +223,12 @@ class CollapseMutation(Mutation): ...
 
 
 class ExpansionMutation(Mutation): ...
+
+class FineTuneMutation(Mutation):
+    @classmethod
+    def _mutate(cls, individual, rng, **kwargs):
+        valid_nodes = [
+            node for node in individual.nodes if node.type == NodeType.CONSTANT
+        ]
+        node = rng.choice(valid_nodes)
+        node.value += rng.normal(-0.1, 0.1)

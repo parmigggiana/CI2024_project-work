@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from gp import GP
+from genetic_operators import FineTuneMutation
 
 
 def fitness(x, y, ind):
@@ -53,7 +54,7 @@ def live_plot(gp: GP, mod: int = 1):
         for ax in live_plot.axes:
             ax.clear()
 
-    live_plot.fig.suptitle(f"Generation {gp.generation}")
+    live_plot.fig.suptitle(f"Generation {gp.generation} - exploitation bias: {gp._exploitation_bias:.2f}")
 
     for ax in live_plot.axes[num_unique:]:
         ax.axis("off")
@@ -102,3 +103,16 @@ def visualize_result(x, y, f, block=None):
         ax.plot_surface(X[0], X[1], f(X), alpha=0.5, color='r')
     fig.colorbar(scatter, ax=ax, label='Distance from predicted value')
     plt.show(block=block)
+
+def fine_tune_constants(gp, min_exploitation_bias, stale_window, threshold, mod):
+    # if the exploitation bias is higher than min_exploitation_bias
+    # and the number of generations since the last improvement is higher than min_stale_generations
+    # run a FineTune operator mutations
+    if gp.generation <= stale_window or gp.generation % mod != 0:
+        return
+    best_history = gp.history[gp.generation - stale_window - 1 : gp.generation - 1].max(
+        axis=-1
+    )
+    if best_history[-1] / best_history[0] < threshold and gp._exploitation_bias >= min_exploitation_bias:
+        FineTuneMutation.get_new_generation(gp.population, mutation_rate=0.75, rng=gp.rng, parallelize=gp.parallelize, force_simplify=gp.force_simplify)
+
