@@ -5,6 +5,7 @@ The function is represented as a tree structure, where each node is an operation
 
 from enum import Enum
 from typing import Self
+import warnings
 
 import numpy as np
 
@@ -367,6 +368,30 @@ class Node:
             )
             enforce_order(simplified_root)
 
+        # a*x + b*x -> (a+b)*x
+
+        # a/(b/x) -> a/b*x
+
+        if (
+            simplified_root.type == NodeType.DIV
+            and simplified_root.children[0].type == NodeType.CONSTANT
+            and simplified_root.children[1].type == NodeType.DIV
+            and simplified_root.children[1].children[0].type == NodeType.CONSTANT
+            and simplified_root.children[1].children[1].type == NodeType.VARIABLE
+        ):
+            simplified_root.type = NodeType.MUL
+            children = [None, None]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                children[1] = Node(
+                    NodeType.CONSTANT,
+                    simplified_root.children[0].value
+                    / simplified_root.children[1].children[1].value,
+                )
+            children[0] = simplified_root.children[1].children[0]
+            simplified_root._children = children
+            enforce_order(simplified_root)
+
         # abs(abs(a)) -> abs(a)
         if (
             simplified_root.type == NodeType.ABS
@@ -400,7 +425,7 @@ class Node:
         import matplotlib.pyplot as plt
 
         if ax is None:
-            fig = plt.figure()
+            fig = plt.figure(figsize=(16, 14))
             ax = fig.add_subplot(111)
             ax.yaxis.set_visible(False)
             ax.xaxis.set_visible(False)

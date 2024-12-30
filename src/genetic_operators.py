@@ -128,7 +128,7 @@ class Mutation(GeneticOperator):
         rng=None,
         executor: Executor = None,
         force_simplify: bool,
-        fitness_function: callable,
+        fitness_function: callable = None,
         **kwargs,
     ):
         if rng is None:
@@ -247,7 +247,8 @@ class FineTuneMutation(Mutation):
         valid_nodes = [
             node for node in individual.nodes if node.type == NodeType.CONSTANT
         ]
-        node = rng.choice(valid_nodes)
-        node.value += rng.normal(-0.1, 0.1)
+        if valid_nodes:
+            node = rng.choice(valid_nodes)
+            node.value += rng.normal(-0.1, 0.1)
 
         return individual
