@@ -353,6 +353,20 @@ class Node:
             simplified_root._children = children
             enforce_order(simplified_root)
 
+        # a - (x * -b) -> a + (x*b)
+        # a - (x / -b) -> a + (x/b)
+        if (
+            simplified_root.type == NodeType.SUB
+            and simplified_root.children[1].type in [NodeType.MUL, NodeType.DIV]
+            and simplified_root.children[1].children[1].type == NodeType.CONSTANT
+            and simplified_root.children[1].children[1].value < 0
+        ):
+            simplified_root.type = NodeType.ADD
+            simplified_root.children[1].children[1].value = (
+                -simplified_root.children[1].children[1].value
+            )
+            enforce_order(simplified_root)
+
         # abs(abs(a)) -> abs(a)
         if (
             simplified_root.type == NodeType.ABS

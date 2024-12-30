@@ -19,7 +19,7 @@ class Extinction(NichingStrategy):
             for i, ind in enumerate(unique, 1):
                 gp.population[-i] = ind
             gp.init_population(
-                gp.population_size - len(unique), gp.init_max_depth, gp.parallelize
+                gp.population_size - len(unique), gp.init_max_depth, gp.executor
             )
 
 

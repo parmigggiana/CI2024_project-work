@@ -1,18 +1,27 @@
 import logging
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import Executor, ProcessPoolExecutor, as_completed
 from functools import cached_property
 
 import numpy as np
+from numpy.random import SFC64
 
-from genetic_operators import (CollapseMutation, Crossover, ExpansionMutation,
-                               GeneticOperator, HoistMutation,
-                               PermutationMutation, PointMutation,
-                               SubtreeMutation)
+from genetic_operators import (
+    CollapseMutation,
+    Crossover,
+    ExpansionMutation,
+    GeneticOperator,
+    HoistMutation,
+    PermutationMutation,
+    PointMutation,
+    SubtreeMutation,
+)
 from individual import Individual
 from niching import Extinction
-from population_selectors import (DeterministicSelector,
-                                  FitnessProportionalSelector,
-                                  TournamentSelector)
+from population_selectors import (
+    DeterministicSelector,
+    FitnessProportionalSelector,
+    TournamentSelector,
+)
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +37,7 @@ class GP:
         self.x = x
         self.y = y
         self.input_size = x.shape[0]
-        self._rng = np.random.default_rng(seed)
+        self._rng = np.random.Generator(SFC64(seed))
         self._before_loop_hooks = []
         self._after_loop_hooks = []
         self._before_iter_hooks = []
@@ -224,21 +233,25 @@ class GP:
         use_tqdm: bool = True,
     ):
 
+        if parallelize:
+            executor = ProcessPoolExecutor()
+        else:
+            executor = None
+
+        self.executor = executor
         self.init_population_size = init_population_size
         self.init_max_depth = init_max_depth
         self.max_generations = max_generations
         self.population = np.empty(shape=(init_population_size,), dtype=Individual)
-        self.init_population(init_population_size, init_max_depth, parallelize)
+        self.init_population(init_population_size, init_max_depth, executor)
         self.history = np.empty((max_generations, self.population_size), dtype=float)
-        self.parallelize = parallelize
-
-        if use_tqdm:
-            from tqdm import tqdm
 
         for hook in self._before_loop_hooks:
             hook(self)
 
         if use_tqdm:
+            from tqdm import tqdm
+
             pbar = tqdm(total=self._tqdm_total)
 
         for self.generation in range(1, max_generations + 1):
@@ -254,7 +267,7 @@ class GP:
                 parent_selector=self._parent_selector,
                 fitness_function=self._fitness_function,
                 input_size=self.input_size,
-                parallelize=parallelize,
+                executor=executor,
                 force_simplify=force_simplify,
             )
 
@@ -292,31 +305,27 @@ class GP:
         for hook in self._after_loop_hooks:
             hook(self)
 
-    def init_population(self, population_size, max_depth, parallelize=True):
-        # I'm disabling parallelization for now because it's slower
-        # I believe it's the overhead of creating the process + the rng for each process
-        # I can't share the rng because itthe processes would be generating the same random numbers
-        # https://stackoverflow.com/questions/72318075/is-numpy-rng-thread-safe
-        # A possible alternative would be to let go of the ProcessPool context and create a shared executor for the whole object
-        parallelize = False
+        if executor:
+            executor.shutdown()
 
-        if parallelize:
-            with ProcessPoolExecutor() as executor:
-                futures = [
-                    executor.submit(
-                        Individual,
-                        initialization_method="full" if i % 2 == 0 else "grow",
-                        max_depth=1 + max_depth * (i + 1) // population_size,
-                        input_size=self.input_size,
-                        rng=np.random.default_rng(
-                            self._rng.integers(0, np.iinfo(np.int32).max)
-                        ),
-                    )
-                    for i in np.arange(population_size)
-                ]
-                self.population[:population_size] = np.array(
-                    [future.result() for future in as_completed(futures)]
+    def init_population(self, population_size, max_depth, executor: Executor = None):
+        # I can't share the rng because the processes would be generating the same random numbers
+        # https://stackoverflow.com/questions/72318075/is-numpy-rng-thread-safe
+
+        if executor:
+            futures = [
+                executor.submit(
+                    Individual,
+                    initialization_method="full" if i % 2 == 0 else "grow",
+                    max_depth=1 + max_depth * (i + 1) // population_size,
+                    input_size=self.input_size,
+                    rng=self._rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
                 )
+                for i in np.arange(population_size)
+            ]
+            self.population[:population_size] = np.array(
+                [future.result() for future in as_completed(futures)]
+            )
         else:
             for i in np.arange(population_size):
                 self.population[i] = Individual(

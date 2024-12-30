@@ -1,9 +1,10 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import Executor, as_completed, wait
 
 import numpy as np
+from numpy.random import SFC64
 
 from individual import Individual
 from model import Node, NodeType, reverse_valid_children, valid_children
@@ -29,12 +30,12 @@ class Crossover(GeneticOperator):
         *,
         rng=None,
         reproduction_rate=2,
-        parallelize=True,
+        executor=None,
         force_simplify: bool,
         **kwargs,
     ):
         if rng is None:
-            rng = np.random.default_rng(time.time_ns())
+            rng = np.random.Generator(SFC64())
 
         parents = parent_selector(
             population, rng=rng, fitness_function=kwargs["fitness_function"]
@@ -48,30 +49,27 @@ class Crossover(GeneticOperator):
             log.error(f"Parents selector: {parent_selector}")
             new_gen = np.full_like(new_gen, parents[0])
 
-        if parallelize:
-            with ProcessPoolExecutor() as executor:
-                processes = []
-                for i in np.arange(population.shape[-1] * reproduction_rate, step=2):
-                    parent1, parent2 = rng.choice(parents, size=2, replace=False)
+        if executor:
+            futures = []
+            for i in np.arange(population.shape[-1] * reproduction_rate, step=2):
+                parent1, parent2 = rng.choice(parents, size=2, replace=False)
 
-                    processes.append(
-                        executor.submit(
-                            cls.cross_parents,
-                            parent1,
-                            parent2,
-                            np.random.default_rng(
-                                rng.integers(0, np.iinfo(np.int32).max)
-                            ),
-                            force_simplify,
-                        )
+                futures.append(
+                    executor.submit(
+                        cls.cross_parents,
+                        parent1,
+                        parent2,
+                        rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
+                        force_simplify,
                     )
-                i = 0
-                for process in as_completed(processes):
-                    new_individual1, new_individual2 = process.result()
-                    new_gen[i] = new_individual1
-                    i += 1
-                    new_gen[i] = new_individual2
-                    i += 1
+                )
+            i = 0
+            for future in as_completed(futures):
+                new_individual1, new_individual2 = future.result()
+                new_gen[i] = new_individual1
+                i += 1
+                new_gen[i] = new_individual2
+                i += 1
         else:
             for i in np.arange(population.shape[-1] * reproduction_rate, step=2):
                 parent1, parent2 = rng.choice(parents, size=2, replace=False)
@@ -88,6 +86,9 @@ class Crossover(GeneticOperator):
     def cross_parents(
         cls, parent1, parent2, rng, force_simplify: bool = False
     ) -> tuple[Individual, Individual]:
+        if isinstance(rng, np.integer):
+            rng = np.random.Generator(SFC64(seed=rng))
+
         new_individual1 = parent1.clone()
         new_individual2 = parent2.clone()
 
@@ -125,28 +126,28 @@ class Mutation(GeneticOperator):
         *,
         mutation_rate=1,
         rng=None,
-        parallelize=True,
+        executor: Executor = None,
         force_simplify: bool,
         **kwargs,
     ):
         if rng is None:
-            rng = np.random.default_rng(time.time_ns())
+            rng = np.random.Generator(SFC64())
 
         new_gen = population.copy()
-        if parallelize:
-            with ProcessPoolExecutor() as executor:
-                for individual in new_gen:
-                    if rng.random() < mutation_rate:
-                        executor.submit(
-                            cls.mutate,
-                            individual,
-                            np.random.default_rng(
-                                rng.integers(0, np.iinfo(np.int32).max)
-                            ),
-                            force_simplify,
-                            **kwargs,
-                        )
-                executor.shutdown(wait=True)
+        if executor:
+            futures = []
+            for individual in new_gen:
+                if rng.random() < mutation_rate:
+                    f = executor.submit(
+                        cls.mutate,
+                        individual,
+                        rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
+                        force_simplify,
+                        **kwargs,
+                    )
+                    futures.append(f)
+            wait(futures)
+
         else:
             for individual in new_gen:
                 if rng.random() < mutation_rate:
@@ -160,6 +161,8 @@ class Mutation(GeneticOperator):
 
     @classmethod
     def mutate(cls, individual: Individual, rng, force_simplify=False, **kwargs):
+        if isinstance(rng, int):
+            rng = np.random.Generator(SFC64(seed=rng))
         individual.root = individual.root.clone()
         cls._mutate(individual, rng, **kwargs)
         if force_simplify:

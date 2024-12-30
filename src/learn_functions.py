@@ -17,13 +17,20 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 import sys
 
 import numpy as np
+from numpy.random import SFC64
 
 from gp import GP
-from util_functions import (early_stop, fine_tune_constants, fitness,
-                            live_plot, visualize_data, visualize_result)
+from util_functions import (
+    early_stop,
+    fine_tune_constants,
+    fitness,
+    live_plot,
+    visualize_data,
+    visualize_result,
+)
 
 # sys.setrecursionlimit(5000)
-SEED = 42
+SEED = 0xFEBA3209B4C18DA4
 PROBLEM = 0
 
 POPULATION_SIZE = 200
@@ -38,7 +45,7 @@ filename = f"data/problem_{PROBLEM}.npz"
 if __name__ == "__main__":
     problem = np.load(filename)
     # Shuffle the data
-    rng = np.random.default_rng(SEED)
+    rng = np.random.Generator(SFC64(SEED))
     idx = rng.permutation(problem["x"].shape[-1])
 
     x = problem["x"][:, idx]
@@ -82,7 +89,7 @@ if __name__ == "__main__":
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
-        parallelize=True,
+        parallelize=False,
         force_simplify=True,
         use_tqdm=True,
     )

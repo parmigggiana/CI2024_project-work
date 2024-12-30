@@ -124,8 +124,8 @@ def fine_tune_constants(gp, min_exploitation_bias, stale_window, threshold, mod)
     ):
         new_gen = FineTuneMutation.get_new_generation(
             gp.population,
-            rng=gp.rng,
-            parallelize=gp.parallelize,
+            rng=gp._rng,
+            executor=gp.executor,
             force_simplify=gp.force_simplify,
         )
         population = np.concatenate((gp.population, new_gen), axis=0)

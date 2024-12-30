@@ -1,6 +1,7 @@
 import time
 
 import numpy as np
+from numpy.random import SFC64
 
 from model import Node, NodeType, function_set, terminal_set, valid_children
 
@@ -12,11 +13,13 @@ class Individual:
         initialization_method: str = None,
         max_depth: int = None,
         input_size: int = None,
-        rng: np.random.Generator = None,
+        rng: np.random.Generator | int = None,
     ):
         self.input_size = input_size
         if rng is None:
-            self.rng: np.random.Generator = np.random.default_rng(seed=time.time_ns())
+            self.rng: np.random.Generator = np.random.Generator(SFC64())
+        elif isinstance(rng, np.integer):
+            self.rng: np.random.Generator = np.random.Generator(SFC64(seed=rng))
         else:
             self.rng: np.random.Generator = rng
 
