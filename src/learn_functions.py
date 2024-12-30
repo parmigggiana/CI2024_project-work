@@ -69,9 +69,10 @@ if __name__ == "__main__":
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_exploitation_operator("xover", 30)
-    gp.add_exploration_operator("point", 2)
-    gp.add_exploration_operator("hoist", 1)
+    gp.add_exploitation_operator("xover", 50)
+    # point mutation is quite slower than the other mutation operators
+    gp.add_exploration_operator("point", 1)
+    gp.add_exploration_operator("hoist", 2)
     gp.add_exploration_operator("permutation", 5)
     gp.set_parent_selector("fitness_proportional")
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
@@ -84,13 +85,14 @@ if __name__ == "__main__":
         )
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 100)) # Heavy on resources
+    # Live plot slows everything down and is not recommended for large population sizes
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 100))
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
-        parallelize=False,
         force_simplify=True,
+        parallelize=True,  # parallel execution is much slower even for large population sizes
         use_tqdm=True,
     )
 

@@ -1,7 +1,6 @@
 import logging
-import time
 from abc import ABC, abstractmethod
-from concurrent.futures import Executor, as_completed, wait
+from concurrent.futures import Executor, as_completed
 
 import numpy as np
 from numpy.random import SFC64
@@ -32,13 +31,14 @@ class Crossover(GeneticOperator):
         reproduction_rate=2,
         executor=None,
         force_simplify: bool,
+        fitness_function: callable,
         **kwargs,
     ):
         if rng is None:
             rng = np.random.Generator(SFC64())
 
         parents = parent_selector(
-            population, rng=rng, fitness_function=kwargs["fitness_function"]
+            population, rng=rng, fitness_function=fitness_function
         )
 
         new_gen = np.empty(
@@ -128,45 +128,50 @@ class Mutation(GeneticOperator):
         rng=None,
         executor: Executor = None,
         force_simplify: bool,
+        fitness_function: callable,
         **kwargs,
     ):
         if rng is None:
             rng = np.random.Generator(SFC64())
+        elif isinstance(rng, np.integer):
+            rng = np.random.Generator(SFC64(seed=rng))
 
-        new_gen = population.copy()
+        new_gen = np.empty(shape=(population.shape[-1],), dtype=Individual)
         if executor:
             futures = []
-            for individual in new_gen:
+            for individual in population:
                 if rng.random() < mutation_rate:
                     f = executor.submit(
                         cls.mutate,
-                        individual,
+                        individual.clone(),
                         rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
                         force_simplify,
                         **kwargs,
                     )
                     futures.append(f)
-            wait(futures)
-
+            for i, future in enumerate(as_completed(futures)):
+                new_gen[i] = future.result()
         else:
-            for individual in new_gen:
+            for i, individual in enumerate(population):
                 if rng.random() < mutation_rate:
-                    cls.mutate(
-                        individual=individual,
+                    ind = cls.mutate(
+                        individual=individual.clone(),
                         rng=rng,
                         force_simplify=force_simplify,
                         **kwargs,
                     )
+                    new_gen[i] = ind
         return new_gen
 
     @classmethod
     def mutate(cls, individual: Individual, rng, force_simplify=False, **kwargs):
-        if isinstance(rng, int):
+        if isinstance(rng, np.integer):
             rng = np.random.Generator(SFC64(seed=rng))
-        individual.root = individual.root.clone()
-        cls._mutate(individual, rng, **kwargs)
+        new_ind = cls._mutate(individual, rng, **kwargs)
+
         if force_simplify:
-            individual.simplify()
+            new_ind.simplify()
+        return new_ind
 
     @classmethod
     def _mutate(cls, individual, rng, **kwargs):
@@ -187,6 +192,8 @@ class PointMutation(Mutation):
         elif node.type == NodeType.VARIABLE:
             node.value = rng.integers(input_size)
 
+        return individual
+
 
 class PermutationMutation(Mutation):
     @classmethod
@@ -199,6 +206,8 @@ class PermutationMutation(Mutation):
             while valid_children[node.type] != 2:
                 node = rng.choice(valid_nodes)
             node.children[0], node.children[1] = node.children[1], node.children[0]
+
+        return individual
 
 
 class HoistMutation(Mutation):
@@ -223,6 +232,8 @@ class HoistMutation(Mutation):
                     child.depth = node.depth + 1
                     nodes.append(child)
 
+        return individual
+
 
 class CollapseMutation(Mutation): ...
 
@@ -238,3 +249,5 @@ class FineTuneMutation(Mutation):
         ]
         node = rng.choice(valid_nodes)
         node.value += rng.normal(-0.1, 0.1)
+
+        return individual

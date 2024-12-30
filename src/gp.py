@@ -228,31 +228,33 @@ class GP:
         init_population_size: int = 10,
         init_max_depth: int = 4,
         max_generations: int = 100,
-        parallelize: bool = True,
         force_simplify: bool = False,
+        parallelize: bool = True,
         use_tqdm: bool = True,
     ):
+
+        self.init_population_size = init_population_size
+        self.init_max_depth = init_max_depth
+        self.max_generations = max_generations
+        self.force_simplify = force_simplify
 
         if parallelize:
             executor = ProcessPoolExecutor()
         else:
             executor = None
-
         self.executor = executor
-        self.init_population_size = init_population_size
-        self.init_max_depth = init_max_depth
-        self.max_generations = max_generations
-        self.population = np.empty(shape=(init_population_size,), dtype=Individual)
-        self.init_population(init_population_size, init_max_depth, executor)
-        self.history = np.empty((max_generations, self.population_size), dtype=float)
-
-        for hook in self._before_loop_hooks:
-            hook(self)
 
         if use_tqdm:
             from tqdm import tqdm
 
             pbar = tqdm(total=self._tqdm_total)
+
+        self.population = np.empty(shape=(init_population_size,), dtype=Individual)
+        self.history = np.empty((max_generations, self.population_size), dtype=float)
+        self.init_population(init_population_size, init_max_depth, executor)
+
+        for hook in self._before_loop_hooks:
+            hook(self)
 
         for self.generation in range(1, max_generations + 1):
             for hook in self._before_iter_hooks:
