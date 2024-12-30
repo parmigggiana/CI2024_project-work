@@ -193,7 +193,7 @@ class Node:
     def __repr__(self) -> str:
         return str(self)
 
-    def simplify(self) -> Self:
+    def simplify(self, zero: float = 1e-6, isRoot=False) -> Self:
         # Return a simplified version of the node
 
         simplified_root = self.clone()
@@ -232,9 +232,9 @@ class Node:
             and simplified_root.children[0].type
             in [NodeType.VARIABLE, NodeType.CONSTANT]
             and simplified_root.children[0].type == simplified_root.children[1].type
-            and -1e-4
+            and -zero
             <= simplified_root.children[0].value - simplified_root.children[1].value
-            <= 1e-4
+            <= zero
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
             enforce_order(simplified_root)
@@ -246,9 +246,9 @@ class Node:
             and simplified_root._children[0].type
             in [NodeType.VARIABLE, NodeType.CONSTANT]
             and simplified_root._children[0].type == simplified_root._children[1].type
-            and -1e-4
+            and -zero
             <= simplified_root._children[0].value - simplified_root._children[1].value
-            <= 1e-4
+            <= zero
         ):
             simplified_root = Node(NodeType.CONSTANT, value=1)
             enforce_order(simplified_root)
@@ -257,11 +257,22 @@ class Node:
         if (
             simplified_root.type == NodeType.ADD
             and simplified_root._children[1].type == NodeType.CONSTANT
-            and -1e-4 <= simplified_root._children[1].value <= 1e-4
+            and -zero <= simplified_root._children[1].value <= zero
         ):
             simplified_root.type = simplified_root._children[0].type
             simplified_root.value = simplified_root._children[0].value
             simplified_root._children = simplified_root._children[0].children
+            enforce_order(simplified_root)
+
+        # 0 + x -> x
+        if (
+            simplified_root.type == NodeType.ADD
+            and simplified_root._children[0].type == NodeType.CONSTANT
+            and -zero <= simplified_root._children[0].value <= zero
+        ):
+            simplified_root.type = simplified_root._children[1].type
+            simplified_root.value = simplified_root._children[1].value
+            simplified_root._children = simplified_root._children[1].children
             enforce_order(simplified_root)
 
         # a - 0 -> a
@@ -269,7 +280,7 @@ class Node:
         if (
             simplified_root.type == NodeType.SUB
             and simplified_root._children[1].type == NodeType.CONSTANT
-            and -1e-4 <= simplified_root._children[1].value <= 1e-4
+            and -zero <= simplified_root._children[1].value <= zero
         ):
             simplified_root.type = simplified_root._children[0].type
             simplified_root.value = simplified_root._children[0].value
@@ -280,7 +291,7 @@ class Node:
         if (
             simplified_root.type == NodeType.MUL
             and simplified_root._children[1].type == NodeType.CONSTANT
-            and -1e-4 <= simplified_root._children[1].value - 1 <= 1e-4
+            and -zero <= simplified_root._children[1].value - 1 <= zero
         ):
             simplified_root.type = simplified_root._children[0].type
             simplified_root.value = simplified_root._children[0].value
@@ -308,10 +319,15 @@ class Node:
             enforce_order(simplified_root)
 
         # 0 * a -> 0
-        if (
-            simplified_root.type == NodeType.MUL
-            and simplified_root._children[0].type == NodeType.CONSTANT
-            and -1e-4 <= simplified_root._children[0].value <= 1e-4
+        if simplified_root.type == NodeType.MUL and (
+            (
+                simplified_root._children[0].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[0].value <= zero
+            )
+            or (
+                simplified_root._children[1].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[1].value <= zero
+            )
         ):
             simplified_root = Node(NodeType.CONSTANT, value=0)
             enforce_order(simplified_root)
@@ -375,6 +391,7 @@ class Node:
             and simplified_root.children[1].type == NodeType.MUL
             and simplified_root.children[0].children[0]
             == simplified_root.children[1].children[0]
+            and simplified_root.children[0].children[0].type == NodeType.CONSTANT
             and simplified_root.children[0].children[1].type == NodeType.VARIABLE
             and simplified_root.children[1].children[1].type == NodeType.VARIABLE
         ):
@@ -390,7 +407,6 @@ class Node:
             enforce_order(simplified_root)
 
         # a/(b/x) -> a/b*x
-
         if (
             simplified_root.type == NodeType.DIV
             and simplified_root.children[0].type == NodeType.CONSTANT
@@ -409,6 +425,33 @@ class Node:
                 )
             children[0] = simplified_root.children[1].children[0]
             simplified_root._children = children
+            enforce_order(simplified_root)
+
+        # sometimes you have a chain of + nodes on the left and on the right very similar branches
+        if (
+            simplified_root.type == NodeType.ADD
+            and simplified_root.children[0].type == NodeType.ADD
+            and simplified_root.children[1].type in reverse_valid_children[2]
+            and simplified_root.children[0].children[1].type
+            in reverse_valid_children[2]
+            and simplified_root.children[1].children[1].type
+            in reverse_valid_children[2]
+            and simplified_root.children[1].children[0].type == NodeType.CONSTANT
+            and simplified_root.children[1].children[1]
+            == simplified_root.children[0].children[1].children[1]
+            and simplified_root.children[0].children[1].children[0].type
+            == NodeType.CONSTANT
+        ):
+            children = [None, None]
+            if simplified_root.children[1].type == NodeType.MUL:
+                children[0] = simplified_root.children[0].children[0]
+                children[1] = simplified_root.children[1]
+                children[1].children[0].value += (
+                    simplified_root.children[0].children[1].children[0].value
+                )
+                simplified_root._children = children
+            elif simplified_root.children[1].type == NodeType.DIV:
+                ...
             enforce_order(simplified_root)
 
         # abs(abs(a)) -> abs(a)
@@ -430,6 +473,9 @@ class Node:
             enforce_order(simplified_root)
 
         # Reset depths and parents
+        if isRoot:
+            simplified_root.depth = 1
+            simplified_root.parent = None
         nodes = [simplified_root]
         while nodes:
             node = nodes.pop()

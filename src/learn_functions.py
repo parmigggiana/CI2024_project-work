@@ -30,14 +30,15 @@ from util_functions import (
 )
 
 # sys.setrecursionlimit(5000)
+# SEED = None
 SEED = 0xFEBA3209B4C18DA4
 PROBLEM = 0
 
-POPULATION_SIZE = 200
+POPULATION_SIZE = 500
 MAX_DEPTH = 5
 
-MAX_GENERATIONS = 2000
-EARLY_STOP_WINDOW_SIZE = 300
+MAX_GENERATIONS = 5000
+EARLY_STOP_WINDOW_SIZE = 1000
 
 
 filename = f"data/problem_{PROBLEM}.npz"
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_exploitation_operator("xover", 40)
+    gp.add_exploitation_operator("xover", 30)
     # point mutation is quite slower than the other mutation operators
     gp.add_exploration_operator("point", 1)
     gp.add_exploration_operator("hoist", 2)
@@ -78,10 +79,10 @@ if __name__ == "__main__":
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: gp.change_exploitation_bias(50, 0.2))
+    gp.add_after_iter_hook(lambda gp: gp.change_exploitation_bias(100, 0.05))
     gp.add_after_iter_hook(
         lambda gp: fine_tune_constants(
-            gp, 0.90, EARLY_STOP_WINDOW_SIZE // 3, 1 + 1e-5, 25
+            gp, 0.90, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-3, 10
         )
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
@@ -92,7 +93,7 @@ if __name__ == "__main__":
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
         force_simplify=True,
-        parallelize=True,
+        parallelize=False,  # parallelize might be slower for small population and low generations, with smaller trees
         use_tqdm=True,
     )
 

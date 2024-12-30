@@ -109,7 +109,8 @@ class GP:
         if self.generation % mod != 0:
             return
 
-        self._exploitation_bias += (1 - self._exploitation_bias) * factor
+        # self._exploitation_bias += (1 - self._exploitation_bias) * factor
+        self._exploitation_bias = np.clip(self._exploitation_bias + factor, 0, 1)
 
         self.clear_cache("__bias")
         self.clear_cache("_genetic_operators_probs")
@@ -340,13 +341,14 @@ class GP:
     def plot(self, block: bool = True):
         import matplotlib.pyplot as plt
 
-        plt.figure()
+        fig = plt.figure("History", figsize=(13, 13))
         for gen in np.arange(self.generation - 1):
             plt.scatter(
                 x=[gen] * self.population_size,
                 y=self.history[gen],
                 label="Fitness",
-                alpha=0.2,
+                alpha=0.1,
+                s=8,
                 c="blue",
             )
         plt.plot(
@@ -354,6 +356,10 @@ class GP:
             label="Best fitness",
             color="red",
         )
+        plt.xlabel("Generation")
+        plt.ylabel("Fitness")
+        plt.yscale("log")
+        plt.tight_layout()
         plt.show(block=block)
 
     @property

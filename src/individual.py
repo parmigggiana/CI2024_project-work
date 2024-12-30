@@ -48,10 +48,10 @@ class Individual:
         return self.root.flatten
 
     def __str__(self):
-        return str(self.root)
+        return str(self.root)[1:-1]
 
     def __repr__(self):
-        return str(self)
+        return str(self.root)
 
     def __eq__(self, other):
         return self.root == other.root
@@ -117,9 +117,9 @@ class Individual:
     def depth(self):
         return max([n.depth for n in self.nodes])
 
-    def simplify(self):
+    def simplify(self, zero: float = 1e-3):
         if not hasattr(self, "simplified_root") or not self.simplified_root:
-            self.root = self.root.simplify()
+            self.root = self.root.simplify(zero, isRoot=True)
             self.simplified_root = True
 
     def draw(self, block=True, ax=None):

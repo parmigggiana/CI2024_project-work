@@ -249,6 +249,6 @@ class FineTuneMutation(Mutation):
         ]
         if valid_nodes:
             node = rng.choice(valid_nodes)
-            node.value += rng.normal(-0.1, 0.1)
+            node.value *= rng.normal(-0.1, 0.1)
 
         return individual

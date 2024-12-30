@@ -45,7 +45,7 @@ def live_plot(gp: GP, mod: int = 1):
     rows = int(np.ceil(num_unique / cols))
 
     if not hasattr(live_plot, "fig"):
-        live_plot.fig, live_plot.axes = plt.subplots(rows, cols, figsize=(15, 5 * rows))
+        live_plot.fig, live_plot.axes = plt.subplots(rows, cols, figsize=(16, 16))
         live_plot.axes = np.array(live_plot.axes).flatten()
 
     else:
@@ -100,7 +100,7 @@ def visualize_result(x, y, f, block=None):
         ax.plot(X0, f([X0]), c="r")
     elif x.shape[0] == 2:
         ax = fig.add_subplot(111, projection="3d")
-        scatter = ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r")
+        scatter = ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r", alpha=1)
 
         X1 = np.arange(x[1].min(), x[1].max(), 0.1)
         X = np.meshgrid(X0, X1)
