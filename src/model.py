@@ -429,18 +429,23 @@ class Node:
 
         # sometimes you have a chain of + nodes on the left and on the right very similar branches
         if (
-            simplified_root.type == NodeType.ADD
-            and simplified_root.children[0].type == NodeType.ADD
-            and simplified_root.children[1].type in reverse_valid_children[2]
-            and simplified_root.children[0].children[1].type
-            in reverse_valid_children[2]
-            and simplified_root.children[1].children[1].type
-            in reverse_valid_children[2]
-            and simplified_root.children[1].children[0].type == NodeType.CONSTANT
-            and simplified_root.children[1].children[1]
-            == simplified_root.children[0].children[1].children[1]
-            and simplified_root.children[0].children[1].children[0].type
-            == NodeType.CONSTANT
+            (simplified_root.type == NodeType.ADD)
+            and (simplified_root.children[0].type == NodeType.ADD)
+            and (simplified_root.children[1].type in reverse_valid_children[2])
+            and (
+                simplified_root.children[0].children[1].type
+                in reverse_valid_children[2]
+            )
+            and (simplified_root.children[1].type in reverse_valid_children[2])
+            and (simplified_root.children[1].children[0].type == NodeType.CONSTANT)
+            and (
+                simplified_root.children[1].children[1]
+                == simplified_root.children[0].children[1].children[1]
+            )
+            and (
+                simplified_root.children[0].children[1].children[0].type
+                == NodeType.CONSTANT
+            )
         ):
             children = [None, None]
             if simplified_root.children[1].type == NodeType.MUL:

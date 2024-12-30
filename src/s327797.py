@@ -17,7 +17,7 @@ def f0(x):
     fine_tune_constants(0.90, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-3, 10)
     """
     # return x[0] + (0.2 * np.sin(x[1]))
-    return (x[0] + (0.108 * np.sin(x[1]))) + (0.092 * np.sin(x[1]))
+    return (x[0] + (0.198 * np.sin(x[1]))) + (0.008 * np.sin((0.194 * np.sin(x[1]))))
 
 
 def f1(x):
