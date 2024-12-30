@@ -3,8 +3,8 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
-from gp import GP
 from genetic_operators import FineTuneMutation
+from gp import GP
 
 
 def fitness(x, y, ind):
@@ -54,7 +54,9 @@ def live_plot(gp: GP, mod: int = 1):
         for ax in live_plot.axes:
             ax.clear()
 
-    live_plot.fig.suptitle(f"Generation {gp.generation} - exploitation bias: {gp._exploitation_bias:.2f}")
+    live_plot.fig.suptitle(
+        f"Generation {gp.generation} - exploitation bias: {gp._exploitation_bias:.2f}"
+    )
 
     for ax in live_plot.axes[num_unique:]:
         ax.axis("off")
@@ -65,6 +67,7 @@ def live_plot(gp: GP, mod: int = 1):
 
     plt.tight_layout()
     plt.pause(0.01)
+
 
 def visualize_data(x, y):
     fig, ax = plt.subplots()
@@ -83,6 +86,7 @@ def visualize_data(x, y):
     plt.show(block=False)
     return fig, ax
 
+
 def visualize_result(x, y, f, block=None):
     # plot the best f as a plane on the set
     fig, ax = plt.subplots()
@@ -92,17 +96,18 @@ def visualize_result(x, y, f, block=None):
     # Color the scatter plot by the distance to the plane
     distances = np.abs(y - f(x))
     if x.shape[0] == 1:
-        scatter = ax.scatter(x[0], y, c=distances, cmap='magma_r')
+        scatter = ax.scatter(x[0], y, c=distances, cmap="magma_r")
         ax.plot(X0, f([X0]), c="r")
     elif x.shape[0] == 2:
         ax = fig.add_subplot(111, projection="3d")
-        scatter = ax.scatter(x[0], x[1], y, c=distances, cmap='magma_r')
+        scatter = ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r")
 
         X1 = np.arange(x[1].min(), x[1].max(), 0.1)
         X = np.meshgrid(X0, X1)
-        ax.plot_surface(X[0], X[1], f(X), alpha=0.5, color='r')
-    fig.colorbar(scatter, ax=ax, label='Distance from predicted value')
+        ax.plot_surface(X[0], X[1], f(X), alpha=0.5, color="r")
+    fig.colorbar(scatter, ax=ax, label="Distance from predicted value")
     plt.show(block=block)
+
 
 def fine_tune_constants(gp, min_exploitation_bias, stale_window, threshold, mod):
     # if the exploitation bias is higher than min_exploitation_bias
@@ -113,6 +118,20 @@ def fine_tune_constants(gp, min_exploitation_bias, stale_window, threshold, mod)
     best_history = gp.history[gp.generation - stale_window - 1 : gp.generation - 1].max(
         axis=-1
     )
-    if best_history[-1] / best_history[0] < threshold and gp._exploitation_bias >= min_exploitation_bias:
-        FineTuneMutation.get_new_generation(gp.population, mutation_rate=0.75, rng=gp.rng, parallelize=gp.parallelize, force_simplify=gp.force_simplify)
+    if (
+        best_history[-1] / best_history[0] < threshold
+        and gp._exploitation_bias >= min_exploitation_bias
+    ):
+        new_gen = FineTuneMutation.get_new_generation(
+            gp.population,
+            rng=gp.rng,
+            parallelize=gp.parallelize,
+            force_simplify=gp.force_simplify,
+        )
+        population = np.concatenate((gp.population, new_gen), axis=0)
 
+        gp.population = gp._survivor_selector(
+            population=population,
+            size=gp.population_size,
+            fitness_function=gp._fitness_function,
+        )

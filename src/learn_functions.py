@@ -15,20 +15,22 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 
 import sys
+
 import numpy as np
 
 from gp import GP
-from util_functions import  early_stop, fitness, live_plot, visualize_data, visualize_result
+from util_functions import (early_stop, fine_tune_constants, fitness,
+                            live_plot, visualize_data, visualize_result)
 
-sys.setrecursionlimit(5000)
+# sys.setrecursionlimit(5000)
 SEED = 42
 PROBLEM = 0
 
-POPULATION_SIZE = 500
+POPULATION_SIZE = 200
 MAX_DEPTH = 5
 
 MAX_GENERATIONS = 2000
-EARLY_STOP_WINDOW_SIZE = 600
+EARLY_STOP_WINDOW_SIZE = 400
 
 
 filename = f"data/problem_{PROBLEM}.npz"
@@ -39,14 +41,14 @@ if __name__ == "__main__":
     rng = np.random.default_rng(SEED)
     idx = rng.permutation(problem["x"].shape[-1])
 
-    x = problem["x"][:,idx]
+    x = problem["x"][:, idx]
     y = problem["y"][idx]
     # Split the data into training and validation sets
     split = int(0.85 * x.shape[-1])
-    x_train = x[:,:split]
+    x_train = x[:, :split]
     y_train = y[:split]
-    x_val = x[:,split:]
-    y_val =y[split:]
+    x_val = x[:, split:]
+    y_val = y[split:]
 
     # fig, ax = visualize_data(x, y, block=False)
 
@@ -61,16 +63,21 @@ if __name__ == "__main__":
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
     gp.add_exploitation_operator("xover", 30)
-    gp.add_exploration_operator("point", 1)
+    gp.add_exploration_operator("point", 2)
     gp.add_exploration_operator("hoist", 1)
-    gp.add_exploration_operator("permutation", 2)
+    gp.add_exploration_operator("permutation", 5)
     gp.set_parent_selector("fitness_proportional")
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: gp.change_exploitation_bias(10, 1.02))
+    gp.add_after_iter_hook(lambda gp: gp.change_exploitation_bias(50, 0.1))
+    gp.add_after_iter_hook(
+        lambda gp: fine_tune_constants(
+            gp, 0.90, EARLY_STOP_WINDOW_SIZE // 3, 1 + 1e-5, 25
+        )
+    )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 2))
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 100)) # Heavy on resources
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
@@ -81,8 +88,6 @@ if __name__ == "__main__":
     )
 
     visualize_result(x, y, gp.best.f, block=False)
-
-
 
     print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
 

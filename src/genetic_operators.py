@@ -36,10 +36,8 @@ class Crossover(GeneticOperator):
         if rng is None:
             rng = np.random.default_rng(time.time_ns())
 
-        cls.rng = rng
-
         parents = parent_selector(
-            population, rng=cls.rng, fitness_function=kwargs["fitness_function"]
+            population, rng=rng, fitness_function=kwargs["fitness_function"]
         )
 
         new_gen = np.empty(
@@ -54,7 +52,7 @@ class Crossover(GeneticOperator):
             with ProcessPoolExecutor() as executor:
                 processes = []
                 for i in np.arange(population.shape[-1] * reproduction_rate, step=2):
-                    parent1, parent2 = cls.rng.choice(parents, size=2, replace=False)
+                    parent1, parent2 = rng.choice(parents, size=2, replace=False)
 
                     processes.append(
                         executor.submit(
@@ -62,7 +60,7 @@ class Crossover(GeneticOperator):
                             parent1,
                             parent2,
                             np.random.default_rng(
-                                cls.rng.integers(0, np.iinfo(np.int32).max)
+                                rng.integers(0, np.iinfo(np.int32).max)
                             ),
                             force_simplify,
                         )
@@ -76,10 +74,10 @@ class Crossover(GeneticOperator):
                     i += 1
         else:
             for i in np.arange(population.shape[-1] * reproduction_rate, step=2):
-                parent1, parent2 = cls.rng.choice(parents, size=2, replace=False)
+                parent1, parent2 = rng.choice(parents, size=2, replace=False)
 
                 new_individual1, new_individual2 = cls.cross_parents(
-                    parent1, parent2, cls.rng, force_simplify
+                    parent1, parent2, rng, force_simplify
                 )
 
                 new_gen[i] = new_individual1
@@ -134,7 +132,6 @@ class Mutation(GeneticOperator):
         if rng is None:
             rng = np.random.default_rng(time.time_ns())
 
-        cls.rng = rng
         new_gen = population.copy()
         if parallelize:
             with ProcessPoolExecutor() as executor:
@@ -144,7 +141,7 @@ class Mutation(GeneticOperator):
                             cls.mutate,
                             individual,
                             np.random.default_rng(
-                                cls.rng.integers(0, np.iinfo(np.int32).max)
+                                rng.integers(0, np.iinfo(np.int32).max)
                             ),
                             force_simplify,
                             **kwargs,
@@ -153,12 +150,17 @@ class Mutation(GeneticOperator):
         else:
             for individual in new_gen:
                 if rng.random() < mutation_rate:
-                    cls.mutate(individual=individual, rng=cls.rng, **kwargs)
-
+                    cls.mutate(
+                        individual=individual,
+                        rng=rng,
+                        force_simplify=force_simplify,
+                        **kwargs,
+                    )
         return new_gen
 
     @classmethod
     def mutate(cls, individual: Individual, rng, force_simplify=False, **kwargs):
+        individual.root = individual.root.clone()
         cls._mutate(individual, rng, **kwargs)
         if force_simplify:
             individual.simplify()
@@ -223,6 +225,7 @@ class CollapseMutation(Mutation): ...
 
 
 class ExpansionMutation(Mutation): ...
+
 
 class FineTuneMutation(Mutation):
     @classmethod

@@ -1,26 +1,18 @@
-from functools import cached_property
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import cached_property
 
 import numpy as np
 
-from genetic_operators import (
-    CollapseMutation,
-    Crossover,
-    ExpansionMutation,
-    GeneticOperator,
-    HoistMutation,
-    PermutationMutation,
-    PointMutation,
-    SubtreeMutation,
-)
+from genetic_operators import (CollapseMutation, Crossover, ExpansionMutation,
+                               GeneticOperator, HoistMutation,
+                               PermutationMutation, PointMutation,
+                               SubtreeMutation)
 from individual import Individual
 from niching import Extinction
-from population_selectors import (
-    DeterministicSelector,
-    FitnessProportionalSelector,
-    TournamentSelector,
-)
+from population_selectors import (DeterministicSelector,
+                                  FitnessProportionalSelector,
+                                  TournamentSelector)
 
 log = logging.getLogger(__name__)
 
@@ -55,11 +47,19 @@ class GP:
 
     @cached_property
     def _genetic_operators_base_weights(self):
-        return np.concatenate([np.array(self._exploration_operators_weights), np.array(self._exploitation_operators_weights)])
+        return np.concatenate(
+            [
+                np.array(self._exploration_operators_weights),
+                np.array(self._exploitation_operators_weights),
+            ]
+        )
 
     @cached_property
     def __bias(self):
-        return np.array([1-self._exploitation_bias]*len(self._exploration_operators_weights) + [self._exploitation_bias]*len(self._exploitation_operators_weights))
+        return np.array(
+            [1 - self._exploitation_bias] * len(self._exploration_operators_weights)
+            + [self._exploitation_bias] * len(self._exploitation_operators_weights)
+        )
 
     @cached_property
     def _genetic_operators_probs(self):
@@ -96,11 +96,12 @@ class GP:
         except AttributeError:
             pass
 
-    def change_exploitation_bias(self, mod: int = 1, factor: float = 1.01):
+    def change_exploitation_bias(self, mod: int = 1, factor: float = 0.5):
         if self.generation % mod != 0:
             return
 
-        self._exploitation_bias *= factor
+        self._exploitation_bias += (1 - self._exploitation_bias) * factor
+
         self.clear_cache("__bias")
         self.clear_cache("_genetic_operators_probs")
 
@@ -292,6 +293,13 @@ class GP:
             hook(self)
 
     def init_population(self, population_size, max_depth, parallelize=True):
+        # I'm disabling parallelization for now because it's slower
+        # I believe it's the overhead of creating the process + the rng for each process
+        # I can't share the rng because itthe processes would be generating the same random numbers
+        # https://stackoverflow.com/questions/72318075/is-numpy-rng-thread-safe
+        # A possible alternative would be to let go of the ProcessPool context and create a shared executor for the whole object
+        parallelize = False
+
         if parallelize:
             with ProcessPoolExecutor() as executor:
                 futures = [

@@ -14,7 +14,7 @@ class Extinction(NichingStrategy):
     @classmethod
     def run(cls, gp, **kwargs):
         unique = set(gp.population)
-        if len(unique) <= 1:
+        if len(unique) <= 2:
             log.info("Extinction event occurred. Reinitializing population.")
             for i, ind in enumerate(unique, 1):
                 gp.population[-i] = ind
