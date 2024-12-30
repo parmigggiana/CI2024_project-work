@@ -369,6 +369,25 @@ class Node:
             enforce_order(simplified_root)
 
         # a*x + b*x -> (a+b)*x
+        if (
+            simplified_root.type == NodeType.ADD
+            and simplified_root.children[0].type == NodeType.MUL
+            and simplified_root.children[1].type == NodeType.MUL
+            and simplified_root.children[0].children[0]
+            == simplified_root.children[1].children[0]
+            and simplified_root.children[0].children[1].type == NodeType.VARIABLE
+            and simplified_root.children[1].children[1].type == NodeType.VARIABLE
+        ):
+            simplified_root.type = NodeType.MUL
+            children = [None, None]
+            children[0] = Node(
+                NodeType.CONSTANT,
+                value=simplified_root.children[0].children[0].value
+                + simplified_root.children[1].children[0].value,
+            )
+            children[1] = simplified_root.children[0].children[1]
+            simplified_root._children = children
+            enforce_order(simplified_root)
 
         # a/(b/x) -> a/b*x
 
@@ -425,7 +444,7 @@ class Node:
         import matplotlib.pyplot as plt
 
         if ax is None:
-            fig = plt.figure(figsize=(16, 14))
+            fig = plt.figure()
             ax = fig.add_subplot(111)
             ax.yaxis.set_visible(False)
             ax.xaxis.set_visible(False)
