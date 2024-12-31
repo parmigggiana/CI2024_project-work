@@ -16,7 +16,7 @@ def fitness(x, y, ind):
             return 0
     fitness = 1 / mse / np.sqrt(ind.depth)
     if np.isnan(fitness) or np.isinf(fitness) or fitness < 0:
-        return 0
+        return 1e-9
 
     return fitness
 
@@ -88,24 +88,86 @@ def visualize_data(x, y):
 
 
 def visualize_result(x, y, f, block=None):
+    DISTANCE_LABEL = "Distance from predicted value"
     # plot the best f as a plane on the set
-    fig, ax = plt.subplots()
-
-    X0 = np.arange(x[0].min(), x[0].max(), 0.1)
+    X0 = np.arange(x[0].min(), x[0].max(), (x[0].max() - x[0].min()) / 20)
 
     # Color the scatter plot by the distance to the plane
     distances = np.abs(y - f(x))
-    if x.shape[0] == 1:
+
+    if x.shape[0] == 1:  # Simple 2D plot
+        fig, ax = plt.subplots()
         scatter = ax.scatter(x[0], y, c=distances, cmap="magma_r")
         ax.plot(X0, f([X0]), c="r")
-    elif x.shape[0] == 2:
-        ax = fig.add_subplot(111, projection="3d")
-        scatter = ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r", alpha=1)
+        fig.colorbar(scatter, ax=ax, label=DISTANCE_LABEL)
+    elif x.shape[0] == 2:  # 3D plot
+        fig = plt.figure()
+        X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
 
-        X1 = np.arange(x[1].min(), x[1].max(), 0.1)
         X = np.meshgrid(X0, X1)
-        ax.plot_surface(X[0], X[1], f(X), alpha=0.5, color="r")
-    fig.colorbar(scatter, ax=ax, label="Distance from predicted value")
+        ax = fig.add_subplot(111, projection="3d")
+        ax.set_xlabel("x[0]")
+        ax.set_ylabel("x[1]")
+        ax.set_zlabel("y")
+        scatter = ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r", alpha=1)
+        ax.plot_surface(
+            X[0],
+            X[1],
+            f(X),
+            alpha=0.5,
+            color="r",
+            rstride=1,
+            cstride=1,
+            edgecolor="none",
+        )
+        fig.colorbar(
+            scatter,
+            ax=ax,
+            label=DISTANCE_LABEL,
+            shrink=0.6,
+            orientation="horizontal",
+        )
+    elif x.shape[0] == 3:  # 3 3D plots, one for each pair of dimensions
+        fig = plt.figure()
+        X2 = np.arange(x[2].min(), x[2].max(), (x[2].max() - x[2].min()) / 20)
+        X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
+
+        X0, X1 = np.meshgrid(X0, X1)
+        X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
+        X1, X2 = np.meshgrid(X1, X2)
+
+        Y = f((X0, X1, X2))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.set_xlabel("x[0]")
+        ax.set_ylabel("x[1]")
+        ax.set_zlabel("y")
+        ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r", alpha=1, s=8)
+        ax.plot_surface(X0, X1, Y, alpha=0.5, color="r", edgecolor="none")
+
+        # ax = fig.add_subplot(132, projection="3d")
+        # ax.set_xlabel("x[0]")
+        # ax.set_ylabel("x[2]")
+        # ax.set_zlabel("y")
+        # ax.scatter(x[0], x[2], y, c=distances, cmap="magma_r", alpha=1, s=8)
+        # ax.plot_surface(X[0][:, 0, :], X[2][:, 0, :], Y[:, 0, :], alpha=0.5, color="r")
+
+        # ax = fig.add_subplot(133, projection="3d")
+        # ax.set_xlabel("x[1]")
+        # ax.set_ylabel("x[2]")
+        # ax.set_zlabel("y")
+        # scatter = ax.scatter(x[1], x[2], y, c=distances, cmap="magma_r", alpha=1, s=8)
+        # ax.plot_surface(X[1][0, :, :], X[2][0, :, :], Y[0, :, :], alpha=0.5, color="r")
+
+        # fig.colorbar(
+        #     scatter,
+        #     ax=fig.axes,
+        #     label=DISTANCE_LABEL,
+        #     shrink=0.6,
+        #     orientation="horizontal",
+        # )
+
+    else:
+        print("Cannot visualize data with more than 3 dimensions")
     plt.show(block=block)
 
 
@@ -135,3 +197,13 @@ def fine_tune_constants(gp, min_exploitation_bias, stale_window, threshold, mod)
             size=gp.population_size,
             fitness_function=gp._fitness_function,
         )
+
+
+def balance_exploitation(gp, mod=1, factor=0.01):
+    if gp.generation % mod != 0:
+        return
+
+    # if gp._exploitation_bias > 0.99:
+    #     gp.change_exploitation_bias(-0.6)
+    else:
+        gp.change_exploitation_bias(factor)

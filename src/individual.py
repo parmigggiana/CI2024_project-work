@@ -14,8 +14,10 @@ class Individual:
         max_depth: int = None,
         input_size: int = None,
         rng: np.random.Generator | int = None,
+        base_scale: float = None,
     ):
         self.input_size = input_size
+        self.base_scale = base_scale
         if rng is None:
             self.rng: np.random.Generator = np.random.Generator(SFC64())
         elif isinstance(rng, np.integer):
@@ -91,15 +93,25 @@ class Individual:
         else:
             n_type = self.rng.choice(in_set)
 
-        self.root = self.get_random_node(n_type)
-        nodes: list[Node] = [
-            self.root,
-        ]
+        if self.base_scale:
+            self.root = Node(NodeType.MUL)
+            self.root.append(Node(NodeType.CONSTANT, value=self.base_scale))
+            self.root.append(self.get_random_node(n_type))
+            max_depth += 1
+            nodes: list[Node] = [
+                self.root.children[0],
+                self.root.children[1],
+            ]
+        else:
+            self.root = self.get_random_node(n_type)
+            nodes: list[Node] = [
+                self.root,
+            ]
 
         while nodes:
             node = nodes.pop()
             for _ in range(valid_children[node.type]):
-                if node.depth == max_depth - 1:
+                if node.depth >= max_depth - 1:
                     n_type = self.rng.choice(terminal_set)
                 else:
                     n_type = self.rng.choice(in_set)
@@ -111,13 +123,17 @@ class Individual:
 
     def clone(self):
         clone = Individual(root=self.root.clone(), rng=self.rng)
+        # try:
+        #     delattr(clone, "simplified_root")
+        # except AttributeError:
+        #     pass
         return clone
 
     @property
     def depth(self):
         return max([n.depth for n in self.nodes])
 
-    def simplify(self, zero: float = 1e-3):
+    def simplify(self, zero: float = 1e-9):
         if not hasattr(self, "simplified_root") or not self.simplified_root:
             self.root = self.root.simplify(zero, isRoot=True)
             self.simplified_root = True

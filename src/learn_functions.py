@@ -14,6 +14,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
     )
 
 
+import pickle
 import sys
 
 import numpy as np
@@ -21,6 +22,7 @@ from numpy.random import SFC64
 
 from gp import GP
 from util_functions import (
+    balance_exploitation,
     early_stop,
     fine_tune_constants,
     fitness,
@@ -32,13 +34,13 @@ from util_functions import (
 # sys.setrecursionlimit(5000)
 # SEED = None
 SEED = 0xFEBA3209B4C18DA4
-PROBLEM = 0
+PROBLEM = 4
 
 POPULATION_SIZE = 500
-MAX_DEPTH = 5
+MAX_DEPTH = 4
 
 MAX_GENERATIONS = 5000
-EARLY_STOP_WINDOW_SIZE = 1000
+EARLY_STOP_WINDOW_SIZE = 2000
 
 
 filename = f"data/problem_{PROBLEM}.npz"
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_exploitation_operator("xover", 30)
+    gp.add_exploitation_operator("xover", 20)
     # point mutation is quite slower than the other mutation operators
     gp.add_exploration_operator("point", 1)
     gp.add_exploration_operator("hoist", 2)
@@ -79,7 +81,7 @@ if __name__ == "__main__":
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: gp.change_exploitation_bias(100, 0.05))
+    gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 500, 0.05))
     gp.add_after_iter_hook(
         lambda gp: fine_tune_constants(
             gp, 0.90, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-3, 10
@@ -87,15 +89,18 @@ if __name__ == "__main__":
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
     # Live plot slows everything down and is not recommended for large population sizes
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 50))
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 10))
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
         force_simplify=True,
-        parallelize=False,  # parallelize might be slower for small population and low generations, with smaller trees
+        parallelize=True,  # parallel is usually slower than serial
         use_tqdm=True,
     )
+
+    with open(f"results/problem_{PROBLEM}.txt", "bw") as f:
+        pickle.dump(gp.best, f)
 
     visualize_result(x, y, gp.best.f, block=False)
 

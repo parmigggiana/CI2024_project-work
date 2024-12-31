@@ -105,10 +105,7 @@ class GP:
         except AttributeError:
             pass
 
-    def change_exploitation_bias(self, mod: int = 1, factor: float = 0.5):
-        if self.generation % mod != 0:
-            return
-
+    def change_exploitation_bias(self, factor: float = 0.5):
         # self._exploitation_bias += (1 - self._exploitation_bias) * factor
         self._exploitation_bias = np.clip(self._exploitation_bias + factor, 0, 1)
 
@@ -230,6 +227,7 @@ class GP:
         init_max_depth: int = 4,
         max_generations: int = 100,
         force_simplify: bool = False,
+        base_scale: float = None,
         parallelize: bool = True,
         use_tqdm: bool = True,
     ):
@@ -237,6 +235,7 @@ class GP:
         self.init_population_size = init_population_size
         self.init_max_depth = init_max_depth
         self.max_generations = max_generations
+        self.base_scale = base_scale
         self.force_simplify = force_simplify
 
         if parallelize:
@@ -296,7 +295,7 @@ class GP:
             if use_tqdm:
                 pbar.update(1)
                 pbar.set_description(
-                    f"Unique individuals: {len(set(self.population)):<3} - Best fitness: {self.best_fitness:.3e}"
+                    f"Unique individuals: {len(set(self.population)):<3} - Best fitness: {self.best_fitness:.3e} - Exploitation bias: {self._exploitation_bias:.2f}"
                 )
 
             if self._stop_condition:
@@ -323,6 +322,7 @@ class GP:
                     max_depth=1 + max_depth * (i + 1) // population_size,
                     input_size=self.input_size,
                     rng=self._rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
+                    base_scale=self.base_scale,
                 )
                 for i in np.arange(population_size)
             ]
@@ -336,6 +336,7 @@ class GP:
                     max_depth=1 + max_depth * (i + 1) // population_size,
                     input_size=self.input_size,
                     rng=self._rng,
+                    base_scale=self.base_scale,
                 )
 
     def plot(self, block: bool = True):

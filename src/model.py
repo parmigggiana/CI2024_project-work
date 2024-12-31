@@ -33,9 +33,9 @@ valid_children = {
     NodeType.DIV: 2,
     NodeType.SIN: 1,
     NodeType.COS: 1,
-    NodeType.EXP: 1,
-    NodeType.ABS: 1,
-    NodeType.LOG: 1,
+    # NodeType.EXP: 1,
+    # NodeType.ABS: 1,
+    # NodeType.LOG: 1,
 }
 
 syms = {
@@ -45,15 +45,16 @@ syms = {
     NodeType.DIV: "/",
     NodeType.SIN: "sin",
     NodeType.COS: "cos",
-    NodeType.EXP: "exp",
-    NodeType.ABS: "abs",
-    NodeType.LOG: "log",
+    # NodeType.EXP: "exp",
+    # NodeType.ABS: "abs",
+    # NodeType.LOG: "log",
 }
 
 
 reverse_valid_children = {
     0: [NodeType.VARIABLE, NodeType.CONSTANT],
-    1: [NodeType.SIN, NodeType.COS, NodeType.EXP, NodeType.ABS, NodeType.LOG],
+    1: [NodeType.SIN, NodeType.COS],
+    # 1: [NodeType.SIN, NodeType.COS, NodeType.EXP, NodeType.ABS, NodeType.LOG],
     2: [NodeType.ADD, NodeType.SUB, NodeType.MUL, NodeType.DIV],
 }
 
@@ -65,9 +66,9 @@ function_set = [
     NodeType.DIV,
     NodeType.SIN,
     NodeType.COS,
-    NodeType.EXP,
-    NodeType.ABS,
-    NodeType.LOG,
+    # NodeType.EXP,
+    # NodeType.ABS,
+    # NodeType.LOG,
 ]
 
 terminal_set = [
@@ -114,7 +115,9 @@ class Node:
             case NodeType.COS:
                 return np.cos(self._children[0].f(x))
             case NodeType.EXP:
-                return np.exp(self._children[0].f(x))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=RuntimeWarning)
+                    return np.exp(self._children[0].f(x))
             case NodeType.ABS:
                 return np.abs(self._children[0].f(x))
             case NodeType.LOG:
@@ -210,6 +213,7 @@ class Node:
 
         # Enforce order to avoid symmetrical trees
         # For commutative operations, enforce left.type > right.type
+
         enforce_order(simplified_root)
 
         # 1.24 - 1.24 OR x[0] - x[0] -> 0
@@ -346,7 +350,7 @@ class Node:
             children[1] = Node(
                 NodeType.CONSTANT,
                 simplified_root.children[0].value
-                + simplified_root.children[1].children[1].value,
+                + simplified_root.children[1].children[0].value,
             )
             simplified_root._children = children
             enforce_order(simplified_root)
@@ -556,6 +560,8 @@ def enforce_order(root):
     if root.type in [NodeType.ADD, NodeType.MUL]:
         left, right = root._children
         if left.type.value > right.type.value or (
-            left.type == right.type and left.value < right.value
+            left.type == right.type
+            and left.type in [NodeType.CONSTANT, NodeType.VARIABLE]
+            and left.value < right.value
         ):
             root._children = [right, left]
