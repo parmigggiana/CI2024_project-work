@@ -132,7 +132,7 @@ def main(
     gp.add_exploration_operator("expansion", 4)
     gp.set_parent_selector("tournament")
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
-    gp.set_survivor_selector("balanced_deterministic")
+    gp.set_survivor_selector("fitness_hole")
     gp.add_niching_operator("extinction")
     gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 100, 0.05))
     gp.add_after_iter_hook(

@@ -20,6 +20,7 @@ from niching import Extinction
 from population_selectors import (
     BalancedDeterministicSelector,
     DeterministicSelector,
+    FitnessHoleSelector,
     FitnessProportionalSelector,
     TournamentSelector,
 )
@@ -185,10 +186,12 @@ class GP:
                     selector = DeterministicSelector
                 case "balanced_deterministic":
                     selector = BalancedDeterministicSelector
+                case "fitness_hole":
+                    selector = FitnessHoleSelector
                 case "tournament":
-                    selector = self._tournament_survivor_selection
+                    selector = TournamentSelector
                 case "fitness_proportional":
-                    selector = self._fitness_proportional_survivor_selection
+                    selector = FitnessProportionalSelector
                 case _:
                     raise ValueError("Invalid survivor selector")
             selector = selector.select

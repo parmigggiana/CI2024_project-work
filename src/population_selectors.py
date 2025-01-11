@@ -1,3 +1,5 @@
+import itertools
+from random import choice
 import warnings
 
 import numpy as np
@@ -34,6 +36,30 @@ class BalancedDeterministicSelector(Selector):
         split = size - split
         worst = sorted_population[2 * size // 3 : 2 * size // 3 + split]
         return np.array(best + worst)
+
+
+class FitnessHoleSelector(Selector):
+    @classmethod
+    def select(cls, population, fitness_function, rng, **kwargs):
+        # Tournament with 2 individuals
+        # with p = 0.8 to select the fittest
+        # and p = 0.2 to select the shallowest
+        selected = []
+        for batch in itertools.batched(population, 2):
+            if len(batch) == 1:
+                selected.append(batch[0])
+                continue
+
+            ind1, ind2 = batch
+            fittest = fitness_function(ind1) > fitness_function(ind2)
+            shallowest = ind1.depth < ind2.depth
+            if rng.random() < 0.8:
+                ind = ind1 if fittest else ind2
+            else:
+                ind = ind1 if shallowest else ind2
+            selected.append(ind)
+
+        return np.array(selected)
 
 
 class FitnessProportionalSelector(Selector):
