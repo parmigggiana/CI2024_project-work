@@ -57,12 +57,8 @@ for k, v in valid_children.items():
     reverse_valid_children[v].add(k)
 
 
-function_set = valid_children.keys() - {NodeType.VARIABLE, NodeType.CONSTANT}
-
-terminal_set = {
-    NodeType.VARIABLE,
-    NodeType.CONSTANT,
-}
+terminal_set = np.array([NodeType.VARIABLE, NodeType.CONSTANT])
+function_set = np.array([k for k in valid_children.keys() if k not in terminal_set])
 
 
 class Node:
