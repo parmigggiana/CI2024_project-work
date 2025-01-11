@@ -14,7 +14,7 @@ def fitness(x, y, ind):
             mse = np.mean((ind.f(x) - y) ** 2)
         except ZeroDivisionError:
             return 0
-    fitness = 1 / mse / np.log(ind.depth + 1)
+    fitness = 1 / mse / np.sqrt(ind.depth)
     if np.isnan(fitness) or np.isinf(fitness) or fitness < 0:
         return -1
 
@@ -112,6 +112,11 @@ def visualize_result(x, y, f, block=None):
         X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
 
         X = np.meshgrid(X0, X1)
+        Y = np.array(f(X))
+
+        if Y.ndim == 0:
+            Y = np.full((len(X0), len(X1)), Y)
+
         ax = fig.add_subplot(111, projection="3d")
         ax.set_xlabel("x[0]")
         ax.set_ylabel("x[1]")
@@ -120,7 +125,7 @@ def visualize_result(x, y, f, block=None):
         ax.plot_surface(
             X[0],
             X[1],
-            f(X),
+            Y,
             alpha=0.5,
             color="r",
             rstride=1,

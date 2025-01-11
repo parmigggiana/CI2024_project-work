@@ -42,16 +42,16 @@ INSTANCES = {
         "EARLY_STOP_WINDOW_SIZE": 500,
     },
     1: {
-        "POPULATION_SIZE": 50,
-        "MAX_DEPTH": 2,
-        "MAX_GENERATIONS": 50,
-        "EARLY_STOP_WINDOW_SIZE": 10,
+        "POPULATION_SIZE": 100,
+        "MAX_DEPTH": 3,
+        "MAX_GENERATIONS": 100,
+        "EARLY_STOP_WINDOW_SIZE": 25,
     },
     2: {
-        "POPULATION_SIZE": 300,
-        "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 5000,
-        "EARLY_STOP_WINDOW_SIZE": 1000,
+        "POPULATION_SIZE": 500,
+        "MAX_DEPTH": 5,
+        "MAX_GENERATIONS": 10000,
+        "EARLY_STOP_WINDOW_SIZE": 2000,
     },
     3: {
         "POPULATION_SIZE": 300,
@@ -60,34 +60,34 @@ INSTANCES = {
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     4: {
-        "POPULATION_SIZE": 300,
+        "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
         "MAX_GENERATIONS": 7500,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     5: {
-        "POPULATION_SIZE": 300,
+        "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
         "MAX_GENERATIONS": 5000,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     6: {
-        "POPULATION_SIZE": 300,
+        "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
         "MAX_GENERATIONS": 5000,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     7: {
-        "POPULATION_SIZE": 300,
+        "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
         "MAX_GENERATIONS": 10000,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     8: {
-        "POPULATION_SIZE": 400,
-        "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 10000,
-        "EARLY_STOP_WINDOW_SIZE": 1000,
+        "POPULATION_SIZE": 500,
+        "MAX_DEPTH": 5,
+        "MAX_GENERATIONS": 20000,
+        "EARLY_STOP_WINDOW_SIZE": 2000,
     },
 }
 
@@ -151,7 +151,7 @@ def main(
         max_generations=MAX_GENERATIONS,
         force_simplify=True,
         parallelize=True,
-        use_tqdm=True,
+        use_tqdm=False,
     )
 
     print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")

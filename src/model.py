@@ -33,9 +33,9 @@ valid_children = {
     NodeType.DIV: 2,
     NodeType.SIN: 1,
     NodeType.COS: 1,
-    # NodeType.EXP: 1,
-    # NodeType.ABS: 1,
-    # NodeType.LOG: 1,
+    NodeType.EXP: 1,
+    NodeType.ABS: 1,
+    NodeType.LOG: 1,
 }
 
 syms = {
@@ -45,36 +45,24 @@ syms = {
     NodeType.DIV: "/",
     NodeType.SIN: "sin",
     NodeType.COS: "cos",
-    # NodeType.EXP: "exp",
-    # NodeType.ABS: "abs",
-    # NodeType.LOG: "log",
+    NodeType.EXP: "exp",
+    NodeType.ABS: "abs",
+    NodeType.LOG: "log",
 }
+syms = {v: k for k, v in syms.items() if k in valid_children}
 
 
-reverse_valid_children = {
-    0: [NodeType.VARIABLE, NodeType.CONSTANT],
-    1: [NodeType.SIN, NodeType.COS],
-    # 1: [NodeType.SIN, NodeType.COS, NodeType.EXP, NodeType.ABS, NodeType.LOG],
-    2: [NodeType.ADD, NodeType.SUB, NodeType.MUL, NodeType.DIV],
-}
+reverse_valid_children = {0: set(), 1: set(), 2: set()}
+for k, v in valid_children.items():
+    reverse_valid_children[v].add(k)
 
 
-function_set = [
-    NodeType.ADD,
-    NodeType.SUB,
-    NodeType.MUL,
-    NodeType.DIV,
-    NodeType.SIN,
-    NodeType.COS,
-    # NodeType.EXP,
-    # NodeType.ABS,
-    # NodeType.LOG,
-]
+function_set = valid_children.keys() - {NodeType.VARIABLE, NodeType.CONSTANT}
 
-terminal_set = [
+terminal_set = {
     NodeType.VARIABLE,
     NodeType.CONSTANT,
-]
+}
 
 
 class Node:
@@ -194,7 +182,7 @@ class Node:
     def __repr__(self) -> str:
         return str(self)
 
-    def simplify(self, zero: float = 1e-6, is_root=False) -> Self:
+    def simplify(self, zero: float = 1e-9, is_root=False) -> Self:
         # Return a simplified version of the node
 
         simplified_root = self.clone()
