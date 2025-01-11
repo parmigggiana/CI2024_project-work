@@ -14,7 +14,7 @@ def fitness(x, y, ind):
             mse = np.mean((ind.f(x) - y) ** 2)
         except ZeroDivisionError:
             return 0
-    fitness = 1 / mse / ind.depth / np.log(ind.depth + 1)
+    fitness = 1 / mse / np.log10(ind.depth + 1)
     if np.isnan(fitness) or np.isinf(fitness) or fitness < 0:
         return -1
 
