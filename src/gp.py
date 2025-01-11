@@ -18,6 +18,7 @@ from genetic_operators import (
 from individual import Individual
 from niching import Extinction
 from population_selectors import (
+    BalancedDeterministicSelector,
     DeterministicSelector,
     FitnessProportionalSelector,
     TournamentSelector,
@@ -34,8 +35,21 @@ class GP:
         *,
         seed=1,
     ):
-        self.x = x
-        self.y = y
+        # normalize x and y
+        # keep the normalization in memory, so that we can use it to normalize new input and de-normalize the output
+        self.y_mean = np.mean(y, axis=-1)
+        self.y_std = np.std(y, axis=-1)
+
+        if self.y_std < 10:
+            self.y_std = np.full_like(self.y_std, 1)
+        if self.y_mean < 10:
+            self.y_mean = np.full_like(self.y_mean, 0)
+
+        # self.y_mean = np.full_like(self.y_mean, 0)
+        # self.y_std = np.full_like(self.y_std, 1)
+
+        # self.y = (y - self.y_mean) / self.y_std
+
         self.input_size = x.shape[0]
         self._rng = np.random.Generator(SFC64(seed))
         self._before_loop_hooks = []
@@ -169,6 +183,8 @@ class GP:
             match selector:
                 case "deterministic":
                     selector = DeterministicSelector
+                case "balanced_deterministic":
+                    selector = BalancedDeterministicSelector
                 case "tournament":
                     selector = self._tournament_survivor_selection
                 case "fitness_proportional":
@@ -202,6 +218,7 @@ class GP:
             return fitness
 
         self._fitness_function = wrapped_fitness
+        self._fitness_function = hook
 
     def add_niching_operator(self, operator):
         if isinstance(operator, str):
@@ -237,6 +254,7 @@ class GP:
         self.max_generations = max_generations
         self.base_scale = base_scale
         self.force_simplify = force_simplify
+        self.stale_iters = 0
 
         if parallelize:
             executor = ProcessPoolExecutor()
@@ -285,12 +303,20 @@ class GP:
                 fitness_function=self._fitness_function,
             )
 
-            for hook in self._after_iter_hooks:
-                hook(self)
-
             self.history[self.generation - 1] = np.array(
                 [self._fitness_function(ind) for ind in self.population]
             )
+
+            if (
+                self._fitness_function(self.best)
+                == self.history[self.generation - 1].max()
+            ):
+                self.stale_iters += 1
+            else:
+                self.stale_iters = 0
+
+            for hook in self._after_iter_hooks:
+                hook(self)
 
             if use_tqdm:
                 pbar.update(1)
@@ -322,7 +348,8 @@ class GP:
                     max_depth=1 + max_depth * (i + 1) // population_size,
                     input_size=self.input_size,
                     rng=self._rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
-                    base_scale=self.base_scale,
+                    mean_y=self.y_mean,
+                    std_y=self.y_std,
                 )
                 for i in np.arange(population_size)
             ]
@@ -336,7 +363,8 @@ class GP:
                     max_depth=1 + max_depth * (i + 1) // population_size,
                     input_size=self.input_size,
                     rng=self._rng,
-                    base_scale=self.base_scale,
+                    mean_y=self.y_mean,
+                    std_y=self.y_std,
                 )
 
     def plot(self, block: bool = True):

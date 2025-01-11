@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 from numpy.random import SFC64
 
@@ -14,10 +12,11 @@ class Individual:
         max_depth: int = None,
         input_size: int = None,
         rng: np.random.Generator | int = None,
-        base_scale: float = None,
+        mean_y=None,
+        std_y=None,
     ):
         self.input_size = input_size
-        self.base_scale = base_scale
+
         if rng is None:
             self.rng: np.random.Generator = np.random.Generator(SFC64())
         elif isinstance(rng, np.integer):
@@ -38,6 +37,17 @@ class Individual:
             self.initialization_method = initialization_method
 
             self.init_tree(max_depth=max_depth, mode=initialization_method)
+
+            if mean_y is not None and std_y is not None:
+                tmp = self.root
+                self.root = Node(NodeType.MUL)
+                self.root.append(Node(NodeType.CONSTANT, value=std_y))
+
+                ch2 = Node(NodeType.ADD, value=mean_y)
+                ch2.append(Node(NodeType.CONSTANT, value=mean_y))
+                ch2.append(tmp)
+
+                self.root.append(ch2)
         else:
             self.root = root
 
@@ -50,7 +60,7 @@ class Individual:
         return self.root.flatten
 
     def __str__(self):
-        return str(self.root)[1:-1]
+        return str(self.root)
 
     def __repr__(self):
         return str(self.root)
@@ -93,20 +103,10 @@ class Individual:
         else:
             n_type = self.rng.choice(in_set)
 
-        if self.base_scale:
-            self.root = Node(NodeType.MUL)
-            self.root.append(Node(NodeType.CONSTANT, value=self.base_scale))
-            self.root.append(self.get_random_node(n_type))
-            max_depth += 1
-            nodes: list[Node] = [
-                self.root.children[0],
-                self.root.children[1],
-            ]
-        else:
-            self.root = self.get_random_node(n_type)
-            nodes: list[Node] = [
-                self.root,
-            ]
+        self.root = self.get_random_node(n_type)
+        nodes: list[Node] = [
+            self.root,
+        ]
 
         while nodes:
             node = nodes.pop()
@@ -122,7 +122,11 @@ class Individual:
                 nodes.append(new_node)
 
     def clone(self):
-        clone = Individual(root=self.root.clone(), rng=self.rng)
+        clone = Individual(
+            root=self.root.clone(),
+            rng=self.rng,
+            input_size=self.input_size,
+        )
         # try:
         #     delattr(clone, "simplified_root")
         # except AttributeError:

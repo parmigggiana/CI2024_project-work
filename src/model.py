@@ -3,9 +3,9 @@ To perform the symbolic regression we need to define the model.
 The function is represented as a tree structure, where each node is an operation or a variable.
 """
 
+import warnings
 from enum import Enum
 from typing import Self
-import warnings
 
 import numpy as np
 
@@ -115,9 +115,7 @@ class Node:
             case NodeType.COS:
                 return np.cos(self._children[0].f(x))
             case NodeType.EXP:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", category=RuntimeWarning)
-                    return np.exp(self._children[0].f(x))
+                return np.exp(self._children[0].f(x))
             case NodeType.ABS:
                 return np.abs(self._children[0].f(x))
             case NodeType.LOG:
@@ -196,7 +194,7 @@ class Node:
     def __repr__(self) -> str:
         return str(self)
 
-    def simplify(self, zero: float = 1e-6, isRoot=False) -> Self:
+    def simplify(self, zero: float = 1e-9, isRoot=False) -> Self:
         # Return a simplified version of the node
 
         simplified_root = self.clone()
