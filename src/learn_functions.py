@@ -136,7 +136,9 @@ def main(
     gp.add_niching_operator("extinction")
     gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 100, 0.05))
     gp.add_after_iter_hook(
-        lambda gp: fine_tune_constants(gp, 0, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-2, 5)
+        lambda gp: fine_tune_constants(
+            gp, 0.5, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-2, 10
+        )
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
     gp.run(

@@ -189,6 +189,7 @@ def fine_tune_constants(gp, min_exploitation_bias, stale_window, threshold, mod)
             population=population,
             size=gp.population_size,
             fitness_function=gp._fitness_function,
+            rng=gp._rng,
         )
 
 
