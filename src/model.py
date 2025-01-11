@@ -52,9 +52,9 @@ syms = {
 syms = {v: k for k, v in syms.items() if k in valid_children}
 
 
-reverse_valid_children = {0: set(), 1: set(), 2: set()}
+reverse_valid_children = {0: [], 1: [], 2: []}
 for k, v in valid_children.items():
-    reverse_valid_children[v].add(k)
+    reverse_valid_children[v].append(k)
 
 
 terminal_set = [NodeType.VARIABLE, NodeType.CONSTANT]
