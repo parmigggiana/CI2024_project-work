@@ -137,9 +137,9 @@ class Individual:
     def depth(self):
         return max([n.depth for n in self.nodes])
 
-    def simplify(self, zero: float = 1e-9):
+    def simplify(self, zero: float = 1e-6):
         if not hasattr(self, "simplified_root") or not self.simplified_root:
-            self.root = self.root.simplify(zero, isRoot=True)
+            self.root = self.root.simplify(zero, is_root=True)
             self.simplified_root = True
 
     def draw(self, block=True, ax=None):

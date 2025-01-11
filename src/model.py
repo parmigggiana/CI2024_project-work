@@ -194,12 +194,12 @@ class Node:
     def __repr__(self) -> str:
         return str(self)
 
-    def simplify(self, zero: float = 1e-9, isRoot=False) -> Self:
+    def simplify(self, zero: float = 1e-6, is_root=False) -> Self:
         # Return a simplified version of the node
 
         simplified_root = self.clone()
         simplified_root._children = [
-            child.simplify() for child in simplified_root._children
+            child.simplify(zero) for child in simplified_root._children
         ]
 
         # Simplify constant sub-trees
@@ -213,19 +213,6 @@ class Node:
         # For commutative operations, enforce left.type > right.type
 
         enforce_order(simplified_root)
-
-        # 1.24 - 1.24 OR x[0] - x[0] -> 0
-        if (
-            simplified_root.type == NodeType.SUB
-            and all(
-                c.type in [NodeType.CONSTANT, NodeType.VARIABLE]
-                for c in simplified_root._children
-            )
-            and simplified_root._children[0].type == simplified_root._children[1].type
-            and simplified_root._children[0].value == simplified_root._children[1].value
-        ):
-            simplified_root = Node(NodeType.CONSTANT, value=0)
-            enforce_order(simplified_root)
 
         # x - x -> 0
         # a - a -> 0
@@ -480,7 +467,7 @@ class Node:
             enforce_order(simplified_root)
 
         # Reset depths and parents
-        if isRoot:
+        if is_root:
             simplified_root.depth = 1
             simplified_root.parent = None
         nodes = [simplified_root]
@@ -495,6 +482,8 @@ class Node:
 
     def draw(self, block: bool = True, ax=None):
         import matplotlib.pyplot as plt
+
+        # Nodes are drawn top to bottom, right to left
 
         if ax is None:
             fig = plt.figure()

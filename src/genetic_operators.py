@@ -6,7 +6,7 @@ import numpy as np
 from numpy.random import SFC64
 
 from individual import Individual
-from model import Node, NodeType, reverse_valid_children, valid_children, terminal_set
+from model import Node, NodeType, reverse_valid_children, terminal_set, valid_children
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class Crossover(GeneticOperator):
         parent_selector,
         *,
         rng=None,
-        reproduction_rate=4,
+        reproduction_rate=2,
         executor=None,
         force_simplify: bool,
         fitness_function: callable,

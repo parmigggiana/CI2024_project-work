@@ -14,7 +14,7 @@ def fitness(x, y, ind):
             mse = np.mean((ind.f(x) - y) ** 2)
         except ZeroDivisionError:
             return 0
-    fitness = 1 / mse / np.log10(ind.depth + 1)
+    fitness = 1 / mse / np.log(ind.depth + 1)
     if np.isnan(fitness) or np.isinf(fitness) or fitness < 0:
         return -1
 
@@ -41,6 +41,13 @@ def live_plot(gp: GP, mod: int = 1):
 
     unique_inds = set(gp.population)
     num_unique = len(unique_inds)
+
+    if num_unique > 16:
+        unique_inds = sorted(
+            unique_inds, key=lambda ind: gp._fitness_function(ind), reverse=True
+        )[:16]
+        num_unique = 16
+
     cols = int(np.ceil(np.sqrt(num_unique)))
     rows = int(np.ceil(num_unique / cols))
 

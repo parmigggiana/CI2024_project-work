@@ -115,7 +115,7 @@ def main(
 
     gp = GP(x_train, y_train, seed=SEED)
 
-    gp.add_after_loop_hook(lambda _: gp.best.simplify())
+    # gp.add_after_loop_hook(lambda _: gp.best.simplify())
     gp.add_after_loop_hook(lambda _: print(f"Best is {gp.best}"))
     gp.add_after_loop_hook(lambda _: print(f"Found in {gp.generation} generations"))
     gp.add_after_loop_hook(
@@ -124,12 +124,12 @@ def main(
     gp.add_exploitation_operator("xover", 80)
     # point mutation is quite slower than the other mutation operators
 
-    gp.add_exploration_operator("subtree", 6)
+    gp.add_exploration_operator("subtree", 8)
     gp.add_exploration_operator("point", 1)
-    gp.add_exploration_operator("hoist", 4)
+    gp.add_exploration_operator("hoist", 1)
     gp.add_exploration_operator("permutation", 1)
-    gp.add_exploration_operator("collapse", 4)
-    gp.add_exploration_operator("expansion", 4)
+    gp.add_exploration_operator("collapse", 6)
+    gp.add_exploration_operator("expansion", 3)
     gp.set_parent_selector("tournament")
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
     gp.set_survivor_selector("fitness_hole")
@@ -141,6 +141,10 @@ def main(
         )
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
+
+    # Not recommended unless debugging
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 100))
+
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
@@ -153,9 +157,6 @@ def main(
     print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
     with open(f"results/problem_{PROBLEM}.txt", "bw") as f:
         pickle.dump(gp.best, f)
-
-    # Live plot slows everything down and is not recommended unless debugging
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 5))
 
     # Draw the best individual as a tree
     # gp.best.draw(block=False)
