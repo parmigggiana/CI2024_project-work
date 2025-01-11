@@ -14,9 +14,9 @@ def fitness(x, y, ind):
             mse = np.mean((ind.f(x) - y) ** 2)
         except ZeroDivisionError:
             return 0
-    fitness = 1 / mse / np.sqrt(ind.depth)
+    fitness = 1 / mse / ind.depth / np.log(ind.depth + 1)
     if np.isnan(fitness) or np.isinf(fitness) or fitness < 0:
-        return 1e-9
+        return -1
 
     return fitness
 
@@ -129,42 +129,35 @@ def visualize_result(x, y, f, block=None):
         )
     elif x.shape[0] == 3:  # 3 3D plots, one for each pair of dimensions
         fig = plt.figure()
-        X2 = np.arange(x[2].min(), x[2].max(), (x[2].max() - x[2].min()) / 20)
-        X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
 
-        X0, X1 = np.meshgrid(X0, X1)
-        X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
-        X1, X2 = np.meshgrid(X1, X2)
-
-        Y = f((X0, X1, X2))
-        ax = fig.add_subplot(111, projection="3d")
+        ax = fig.add_subplot(131, projection="3d")
         ax.set_xlabel("x[0]")
         ax.set_ylabel("x[1]")
         ax.set_zlabel("y")
         ax.scatter(x[0], x[1], y, c=distances, cmap="magma_r", alpha=1, s=8)
-        ax.plot_surface(X0, X1, Y, alpha=0.5, color="r", edgecolor="none")
+        # ax.plot_surface(X0, X1, Y, alpha=0.5, color="r", edgecolor="none")
 
-        # ax = fig.add_subplot(132, projection="3d")
-        # ax.set_xlabel("x[0]")
-        # ax.set_ylabel("x[2]")
-        # ax.set_zlabel("y")
-        # ax.scatter(x[0], x[2], y, c=distances, cmap="magma_r", alpha=1, s=8)
+        ax = fig.add_subplot(132, projection="3d")
+        ax.set_xlabel("x[0]")
+        ax.set_ylabel("x[2]")
+        ax.set_zlabel("y")
+        ax.scatter(x[0], x[2], y, c=distances, cmap="magma_r", alpha=1, s=8)
         # ax.plot_surface(X[0][:, 0, :], X[2][:, 0, :], Y[:, 0, :], alpha=0.5, color="r")
 
-        # ax = fig.add_subplot(133, projection="3d")
-        # ax.set_xlabel("x[1]")
-        # ax.set_ylabel("x[2]")
-        # ax.set_zlabel("y")
-        # scatter = ax.scatter(x[1], x[2], y, c=distances, cmap="magma_r", alpha=1, s=8)
+        ax = fig.add_subplot(133, projection="3d")
+        ax.set_xlabel("x[1]")
+        ax.set_ylabel("x[2]")
+        ax.set_zlabel("y")
+        scatter = ax.scatter(x[1], x[2], y, c=distances, cmap="magma_r", alpha=1, s=8)
         # ax.plot_surface(X[1][0, :, :], X[2][0, :, :], Y[0, :, :], alpha=0.5, color="r")
 
-        # fig.colorbar(
-        #     scatter,
-        #     ax=fig.axes,
-        #     label=DISTANCE_LABEL,
-        #     shrink=0.6,
-        #     orientation="horizontal",
-        # )
+        fig.colorbar(
+            scatter,
+            ax=fig.axes,
+            label=DISTANCE_LABEL,
+            shrink=0.6,
+            orientation="horizontal",
+        )
 
     else:
         print("Cannot visualize data with more than 3 dimensions")
@@ -203,7 +196,13 @@ def balance_exploitation(gp, mod=1, factor=0.01):
     if gp.generation % mod != 0:
         return
 
-    # if gp._exploitation_bias > 0.99:
-    #     gp.change_exploitation_bias(-0.6)
+    if not hasattr(balance_exploitation, "factor"):
+        balance_exploitation.factor = factor
+
+    if gp._exploitation_bias <= 0.2 or gp._exploitation_bias >= 0.8:
+        balance_exploitation.factor = -balance_exploitation.factor
+
+    if gp.stale_iters >= mod:
+        gp.change_exploitation_bias(-balance_exploitation.factor / 2)
     else:
-        gp.change_exploitation_bias(factor)
+        gp.change_exploitation_bias(balance_exploitation.factor)
