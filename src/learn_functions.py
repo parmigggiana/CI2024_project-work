@@ -16,6 +16,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 import pickle
 import sys
+import warnings
 
 import numpy as np
 from numpy.random import SFC64
@@ -27,25 +28,77 @@ from util_functions import (
     fine_tune_constants,
     fitness,
     live_plot,
-    visualize_data,
     visualize_result,
 )
 
-# sys.setrecursionlimit(5000)
 # SEED = None
 SEED = 0xFEBA3209B4C18DA4
-PROBLEM = 4
 
-POPULATION_SIZE = 500
-MAX_DEPTH = 4
+INSTANCES = {
+    0: {
+        "POPULATION_SIZE": 400,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 3000,
+        "EARLY_STOP_WINDOW_SIZE": 500,
+    },
+    1: {
+        "POPULATION_SIZE": 50,
+        "MAX_DEPTH": 2,
+        "MAX_GENERATIONS": 50,
+        "EARLY_STOP_WINDOW_SIZE": 10,
+    },
+    2: {
+        "POPULATION_SIZE": 300,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 5000,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+    3: {
+        "POPULATION_SIZE": 300,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 5000,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+    4: {
+        "POPULATION_SIZE": 300,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 7500,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+    5: {
+        "POPULATION_SIZE": 300,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 5000,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+    6: {
+        "POPULATION_SIZE": 300,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 5000,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+    7: {
+        "POPULATION_SIZE": 300,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 10000,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+    8: {
+        "POPULATION_SIZE": 400,
+        "MAX_DEPTH": 4,
+        "MAX_GENERATIONS": 10000,
+        "EARLY_STOP_WINDOW_SIZE": 1000,
+    },
+}
 
-MAX_GENERATIONS = 5000
-EARLY_STOP_WINDOW_SIZE = 2000
 
-
-filename = f"data/problem_{PROBLEM}.npz"
-
-if __name__ == "__main__":
+def main(
+    filename,
+    POPULATION_SIZE,
+    MAX_DEPTH,
+    MAX_GENERATIONS,
+    EARLY_STOP_WINDOW_SIZE,
+) -> None:
     problem = np.load(filename)
     # Shuffle the data
     rng = np.random.Generator(SFC64(SEED))
@@ -60,54 +113,66 @@ if __name__ == "__main__":
     x_val = x[:, split:]
     y_val = y[split:]
 
-    # fig, ax = visualize_data(x, y, block=False)
-
     gp = GP(x_train, y_train, seed=SEED)
 
-    gp.add_before_loop_hook(lambda _: print(f"Starting on problem {PROBLEM}"))
-    gp.add_after_loop_hook(lambda _: print(f"Finished on problem {PROBLEM}"))
     gp.add_after_loop_hook(lambda _: gp.best.simplify())
     gp.add_after_loop_hook(lambda _: print(f"Best is {gp.best}"))
     gp.add_after_loop_hook(lambda _: print(f"Found in {gp.generation} generations"))
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_exploitation_operator("xover", 20)
+    gp.add_exploitation_operator("xover", 80)
     # point mutation is quite slower than the other mutation operators
+
+    gp.add_exploration_operator("subtree", 6)
     gp.add_exploration_operator("point", 1)
-    gp.add_exploration_operator("hoist", 2)
-    gp.add_exploration_operator("permutation", 5)
-    gp.set_parent_selector("fitness_proportional")
+    gp.add_exploration_operator("hoist", 4)
+    gp.add_exploration_operator("permutation", 1)
+    gp.add_exploration_operator("collapse", 4)
+    gp.add_exploration_operator("expansion", 4)
+    gp.set_parent_selector("tournament")
     gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
-    gp.set_survivor_selector("deterministic")
+    gp.set_survivor_selector("balanced_deterministic")
     gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 500, 0.05))
+    gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 100, 0.05))
     gp.add_after_iter_hook(
-        lambda gp: fine_tune_constants(
-            gp, 0.90, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-3, 10
-        )
+        lambda gp: fine_tune_constants(gp, 0, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-2, 5)
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
     # Live plot slows everything down and is not recommended for large population sizes
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 10))
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 5))
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
         max_generations=MAX_GENERATIONS,
         force_simplify=True,
-        parallelize=True,  # parallel is usually slower than serial
+        parallelize=True,
         use_tqdm=True,
     )
 
+    print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
     with open(f"results/problem_{PROBLEM}.txt", "bw") as f:
         pickle.dump(gp.best, f)
 
-    visualize_result(x, y, gp.best.f, block=False)
+    # visualize_result(x, y, gp.best.f, block=False)
+    # gp.best.draw(block=False)
+    # gp.plot()
 
-    print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
 
-    try:
-        gp.best.draw(block=False)
-        gp.plot()
-    except KeyboardInterrupt:
-        pass
+def solve(problem):
+    filename = f"data/problem_{problem}.npz"
+    print(f"Running problem {problem}")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        main(filename, **INSTANCES[problem])
+    print()
+
+
+if __name__ == "__main__":
+
+    if len(sys.argv) > 1:
+        PROBLEM = int(sys.argv[1])
+        solve(PROBLEM)
+    else:
+        for PROBLEM in INSTANCES:
+            solve(PROBLEM)
