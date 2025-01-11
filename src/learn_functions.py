@@ -139,8 +139,6 @@ def main(
         lambda gp: fine_tune_constants(gp, 0, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-2, 5)
     )
     gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
-    # Live plot slows everything down and is not recommended for large population sizes
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 5))
     gp.run(
         init_population_size=POPULATION_SIZE,
         init_max_depth=MAX_DEPTH,
@@ -154,9 +152,17 @@ def main(
     with open(f"results/problem_{PROBLEM}.txt", "bw") as f:
         pickle.dump(gp.best, f)
 
-    # visualize_result(x, y, gp.best.f, block=False)
+    # Live plot slows everything down and is not recommended unless debugging
+    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 5))
+
+    # Draw the best individual as a tree
     # gp.best.draw(block=False)
+
+    # Plot the fitness over generations
     # gp.plot()
+
+    # Plot the best individual projected on the data
+    # visualize_result(x, y, gp.best.f, block=False)
 
 
 def solve(problem):
