@@ -40,23 +40,21 @@ class BalancedDeterministicSelector(Selector):
 
 class FitnessHoleSelector(Selector):
     @classmethod
-    def select(cls, population, fitness_function, rng, **kwargs):
-        # Tournament with 2 individuals
-        # with p = 0.8 to select the fittest
-        # and p = 0.2 to select the shallowest
+    def select(cls, population, size, fitness_function, rng, **kwargs):
+        # Instead of tournament with 2 individuals
+        # use n individuals but with fixed amount of tournaments so the population size is constant
         selected = []
-        for batch in itertools.batched(population, 2):
-            if len(batch) == 1:
-                selected.append(batch[0])
+        for tournament in np.array_split(population, size):
+            if len(tournament) == 1:
+                selected.append(tournament[0])
                 continue
 
-            ind1, ind2 = batch
-            fittest = fitness_function(ind1) > fitness_function(ind2)
-            shallowest = ind1.depth < ind2.depth
+            fittest = np.argmax([fitness_function(ind) for ind in tournament])
+            shallowest = np.argmin([ind.depth for ind in tournament])
             if rng.random() < 0.8:
-                ind = ind1 if fittest else ind2
+                ind = tournament[fittest]
             else:
-                ind = ind1 if shallowest else ind2
+                ind = tournament[shallowest]
             selected.append(ind)
 
         return np.array(selected)

@@ -304,6 +304,7 @@ class GP:
                 population=population,
                 size=self.population_size,
                 fitness_function=self._fitness_function,
+                rng=self._rng,
             )
 
             self.history[self.generation - 1] = np.array(
