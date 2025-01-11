@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 
 
@@ -17,16 +19,34 @@ class DeterministicSelector(Selector):
         )
 
 
+class BalancedDeterministicSelector(Selector):
+    @classmethod
+    def select(cls, population, size, fitness_function, **kwargs):
+        if len(population) < 800:
+            return DeterministicSelector.select(population, size, fitness_function)
+
+        sorted_population = sorted(
+            population, key=lambda ind: fitness_function(ind), reverse=True
+        )
+        # Select the best 80% of size and 20% from the worst third
+        split = int(size * 0.8)
+        best = sorted_population[:split]
+        split = size - split
+        worst = sorted_population[2 * size // 3 : 2 * size // 3 + split]
+        return np.array(best + worst)
+
+
 class FitnessProportionalSelector(Selector):
     @classmethod
     def select(cls, population, fitness_function, rng):
         p = np.array(
-            [fitness_function(individual) for individual in population], dtype=float
+            [fitness_function(individual) for individual in population],
+            dtype=float,
         )
-        p -= (
-            np.min(p) - 1e-9
-        )  # if all fitness are the same, the probability would be 0 without 1e-9
+        p -= np.min(p) - 1e-9
+        p = np.maximum(p, 0)
         p /= p.sum()
+
         p *= len(p)
 
         selected = population[rng.random(size=population.shape[-1]) < p]
@@ -38,12 +58,19 @@ class FitnessProportionalSelector(Selector):
 
 class TournamentSelector(Selector):
     @classmethod
-    def select(
-        cls, population, tournaments, fitness_function, tournament_size, **kwargs
-    ):
+    def select(cls, population, fitness_function, tournaments=None, **kwargs):
+        if tournaments is None:
+            tournaments = int(np.sqrt(len(population)))
+
         selected = []
-        for _ in range(tournaments):
-            tournament = cls.rng.choice(population, size=tournament_size, replace=False)
-            winner = max(tournament, key=lambda ind: fitness_function(ind))
+        # Split population into tournaments
+        # use numpy array split to split the population into tournaments
+        # then use np.argmax to find the index of the winner of each tournament
+        # then use that index to select the winner from the population
+        for tournament in np.array_split(population, tournaments):
+            winner = tournament[
+                np.argmax([fitness_function(ind) for ind in tournament])
+            ]
             selected.append(winner)
+
         return np.array(selected)
