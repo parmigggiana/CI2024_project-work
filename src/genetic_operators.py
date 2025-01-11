@@ -6,7 +6,7 @@ import numpy as np
 from numpy.random import SFC64
 
 from individual import Individual
-from model import Node, NodeType, reverse_valid_children, valid_children
+from model import Node, NodeType, reverse_valid_children, valid_children, terminal_set
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class Crossover(GeneticOperator):
         parent_selector,
         *,
         rng=None,
-        reproduction_rate=2,
+        reproduction_rate=4,
         executor=None,
         force_simplify: bool,
         fitness_function: callable,
@@ -178,7 +178,27 @@ class Mutation(GeneticOperator):
         raise NotImplementedError(f"{cls.__name__} is not yet implemented.")
 
 
-class SubtreeMutation(Mutation): ...
+class SubtreeMutation(Mutation):
+    @classmethod
+    def _mutate(cls, individual, rng, **kwargs):
+        # Pick a random node to replace
+        # Generate a new random subtree
+        # Replace the node with the subtree
+
+        node = rng.choice(individual.nodes)
+
+        subtree = Individual(
+            initialization_method="grow",
+            max_depth=4,
+            input_size=individual.input_size,
+        ).root
+        if node.parent is None:
+            individual.root = subtree
+        else:
+            node.parent._children.remove(node)
+            node.parent.append(subtree)
+
+        return individual
 
 
 class PointMutation(Mutation):
@@ -235,10 +255,41 @@ class HoistMutation(Mutation):
         return individual
 
 
-class CollapseMutation(Mutation): ...
+class CollapseMutation(Mutation):
+    @classmethod
+    def _mutate(cls, individual, rng, **kwargs):
+        node = rng.choice(individual.nodes)
+        n_type = rng.choice(terminal_set)
+        new_node = individual.get_random_node(n_type)
+        if node.parent is None:
+            individual.root = new_node
+        else:
+            node.parent._children.remove(node)
+            node.parent.append(new_node)
+
+        return individual
 
 
-class ExpansionMutation(Mutation): ...
+class ExpansionMutation(Mutation):
+    @classmethod
+    def _mutate(cls, individual, rng, **kwargs):
+        valid_nodes = [
+            node for node in individual.nodes if valid_children[node.type] == 0
+        ]
+        if valid_nodes:
+            node = rng.choice(valid_nodes)
+            subtree = Individual(
+                initialization_method="grow",
+                max_depth=4,
+                input_size=individual.input_size,
+            ).root
+            if node.parent is None:
+                individual.root = subtree
+            else:
+                node.parent._children.remove(node)
+                node.parent.append(subtree)
+
+        return individual
 
 
 class FineTuneMutation(Mutation):
@@ -249,6 +300,6 @@ class FineTuneMutation(Mutation):
         ]
         if valid_nodes:
             node = rng.choice(valid_nodes)
-            node.value *= rng.normal(-0.1, 0.1)
+            node.value *= rng.normal(0.8, 1.2)
 
         return individual
