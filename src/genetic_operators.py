@@ -28,7 +28,7 @@ class Crossover(GeneticOperator):
         parent_selector,
         *,
         rng=None,
-        reproduction_rate=2,
+        reproduction_rate=3,
         executor=None,
         force_simplify: bool,
         fitness_function: callable,

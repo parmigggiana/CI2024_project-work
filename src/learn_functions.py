@@ -14,9 +14,13 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
     )
 
 
+import argparse
+import datetime
+import os
 import pickle
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 from numpy.random import SFC64
@@ -27,9 +31,9 @@ from util_functions import (
     early_stop,
     fine_tune_constants,
     fitness,
-    live_plot,
     visualize_result,
 )
+from util_functions import live_plot as live_plot_fn
 
 # SEED = None
 SEED = 0xFEBA3209B4C18DA4
@@ -38,8 +42,8 @@ INSTANCES = {
     0: {
         "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 3000,
-        "EARLY_STOP_WINDOW_SIZE": 500,
+        "MAX_GENERATIONS": 1600,
+        "EARLY_STOP_WINDOW_SIZE": 400,
     },
     1: {
         "POPULATION_SIZE": 100,
@@ -50,62 +54,87 @@ INSTANCES = {
     2: {
         "POPULATION_SIZE": 500,
         "MAX_DEPTH": 5,
-        "MAX_GENERATIONS": 10000,
+        "MAX_GENERATIONS": 5000,
         "EARLY_STOP_WINDOW_SIZE": 2000,
     },
     3: {
-        "POPULATION_SIZE": 300,
-        "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 5000,
-        "EARLY_STOP_WINDOW_SIZE": 1000,
+        "POPULATION_SIZE": 500,
+        "MAX_DEPTH": 5,
+        "MAX_GENERATIONS": 500,
+        "EARLY_STOP_WINDOW_SIZE": 100,
     },
     4: {
-        "POPULATION_SIZE": 400,
-        "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 7500,
+        "POPULATION_SIZE": 500,
+        "MAX_DEPTH": 6,
+        "MAX_GENERATIONS": 2500,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     5: {
         "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 5000,
+        "MAX_GENERATIONS": 2500,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     6: {
         "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 5000,
-        "EARLY_STOP_WINDOW_SIZE": 1000,
+        "MAX_GENERATIONS": 500,
+        "EARLY_STOP_WINDOW_SIZE": 10,
     },
     7: {
         "POPULATION_SIZE": 400,
         "MAX_DEPTH": 4,
-        "MAX_GENERATIONS": 10000,
+        "MAX_GENERATIONS": 4000,
         "EARLY_STOP_WINDOW_SIZE": 1000,
     },
     8: {
         "POPULATION_SIZE": 500,
         "MAX_DEPTH": 5,
-        "MAX_GENERATIONS": 20000,
+        "MAX_GENERATIONS": 8000,
         "EARLY_STOP_WINDOW_SIZE": 2000,
     },
 }
 
 
-def main(
-    filename,
-    POPULATION_SIZE,
-    MAX_DEPTH,
-    MAX_GENERATIONS,
-    EARLY_STOP_WINDOW_SIZE,
+def save_snapshot(gp, filename, function_only=False):
+    os.makedirs("results", exist_ok=True)
+    with open(filename, "bw") as fs:
+        if function_only:
+            pickle.dump(gp.best.f, fs)
+        else:
+            pickle.dump(gp.population, fs)
+
+
+def restore_snapshot(gp, filename):
+    if Path(filename).exists():
+        with open(filename, "br") as fs:
+            gp.population = pickle.load(fs)
+
+
+def solve(
+    problem,
+    multiprocessing=False,
+    tqdm=True,
+    live_plot: bool | int = False,
+    ignore_snapshots=False,
+    profile=False,
 ) -> None:
-    problem = np.load(filename)
+    filename = f"data/problem_{problem}.npz"
+    print(f"Running problem {problem}")
+
+    instance = INSTANCES[problem]
+    POPULATION_SIZE = instance["POPULATION_SIZE"]
+    MAX_DEPTH = instance["MAX_DEPTH"]
+    MAX_GENERATIONS = instance["MAX_GENERATIONS"]
+    EARLY_STOP_WINDOW_SIZE = instance["EARLY_STOP_WINDOW_SIZE"]
+
+    problem_data = np.load(filename)
     # Shuffle the data
     rng = np.random.Generator(SFC64(SEED))
-    idx = rng.permutation(problem["x"].shape[-1])
+    idx = rng.permutation(problem_data["x"].shape[-1])
 
-    x = problem["x"][:, idx]
-    y = problem["y"][idx]
+    x = problem_data["x"][:, idx]
+    y = problem_data["y"][idx]
     # Split the data into training and validation sets
     split = int(0.85 * x.shape[-1])
     x_train = x[:, :split]
@@ -115,73 +144,144 @@ def main(
 
     gp = GP(x_train, y_train, seed=SEED)
 
-    # gp.add_after_loop_hook(lambda _: gp.best.simplify())
-    gp.add_after_loop_hook(lambda _: print(f"Best is {gp.best}"))
-    gp.add_after_loop_hook(lambda _: print(f"Found in {gp.generation} generations"))
+    gp.add_exploitation_operator("xover", 80)
+    gp.add_exploration_operator("subtree", 4)
+    gp.add_exploration_operator("point", 1)
+    gp.add_exploration_operator("hoist", 1)
+    gp.add_exploration_operator("permutation", 2)
+    gp.add_exploration_operator("collapse", 7)
+    gp.add_exploration_operator("expansion", 5)
+    gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
+    gp.set_parent_selector("tournament")
+    gp.set_survivor_selector("fitness_hole")
+    gp.add_niching_operator("extinction")
+    if not ignore_snapshots:
+        gp.add_before_loop_hook(
+            lambda gp: restore_snapshot(gp, f"snapshot_{problem}.tmp")
+        )
+    gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 50, 0.05))
+    gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1.2))
+    gp.add_after_iter_hook(
+        lambda gp: (gp.generation % 50 == 0)
+        and save_snapshot(gp, f"snapshot_{problem}.tmp")
+    )
+    gp.add_after_loop_hook(lambda gp: gp.best.simplify())
+    gp.add_after_loop_hook(fine_tune_constants)
+    gp.add_after_loop_hook(lambda gp: print(f"Best is {gp.best}"))
+    gp.add_after_loop_hook(lambda gp: print(f"Found in {gp.generation} generations"))
     gp.add_after_loop_hook(
         lambda _: print(f"MSE on training set: {np.mean((gp.best.f(x) - y) ** 2):.3e}")
     )
-    gp.add_exploitation_operator("xover", 80)
-    # point mutation is quite slower than the other mutation operators
-
-    gp.add_exploration_operator("subtree", 8)
-    gp.add_exploration_operator("point", 1)
-    gp.add_exploration_operator("hoist", 1)
-    gp.add_exploration_operator("permutation", 1)
-    gp.add_exploration_operator("collapse", 6)
-    gp.add_exploration_operator("expansion", 3)
-    gp.set_parent_selector("tournament")
-    gp.set_fitness_function(lambda ind: fitness(x_train, y_train, ind))
-    gp.set_survivor_selector("fitness_hole")
-    gp.add_niching_operator("extinction")
-    gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 100, 0.05))
-    gp.add_after_iter_hook(
-        lambda gp: fine_tune_constants(
-            gp, 0.5, EARLY_STOP_WINDOW_SIZE // 4, 1 + 1e-2, 10
-        )
-    )
-    gp.add_after_iter_hook(lambda gp: early_stop(gp, EARLY_STOP_WINDOW_SIZE, 1 + 1e-5))
 
     # Not recommended unless debugging
-    # gp.add_after_iter_hook(lambda gp: live_plot(gp, 100))
+    if live_plot:
+        gp.add_after_iter_hook(
+            lambda gp: live_plot_fn(gp, live_plot, max_individuals=16)
+        )
 
-    gp.run(
-        init_population_size=POPULATION_SIZE,
-        init_max_depth=MAX_DEPTH,
-        max_generations=MAX_GENERATIONS,
-        force_simplify=True,
-        parallelize=True,
-        use_tqdm=False,
-    )
-
-    print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
-    with open(f"results/problem_{PROBLEM}.txt", "bw") as f:
-        pickle.dump(gp.best, f)
-
-    # Draw the best individual as a tree
-    # gp.best.draw(block=False)
-
-    # Plot the fitness over generations
-    # gp.plot()
-
-    # Plot the best individual projected on the data
-    # visualize_result(x, y, gp.best.f, block=False)
-
-
-def solve(problem):
-    filename = f"data/problem_{problem}.npz"
-    print(f"Running problem {problem}")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        main(filename, **INSTANCES[problem])
+        if profile:
+            import cProfile
+            import pstats
+
+            pr = cProfile.Profile()
+            pr.enable()
+        gp.run(
+            init_population_size=POPULATION_SIZE,
+            init_max_depth=MAX_DEPTH,
+            max_generations=MAX_GENERATIONS,
+            force_simplify=True,
+            parallelize=multiprocessing,
+            use_tqdm=tqdm,
+        )
+        if profile:
+            pr.disable()
+            stats = pstats.Stats(pr)
+            stats.strip_dirs()
+            stats.sort_stats(pstats.SortKey.TIME)
+            # stats.sort_stats(pstats.SortKey.CUMULATIVE)
+            stats.dump_stats(f"run_{datetime.datetime.now().isoformat()}.prof")
+
+    save_snapshot(gp, f"results/problem_{problem}", function_only=True)
+
+    print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
     print()
+
+    # Plot the fitness over generations
+    gp.plot()
+
+    # Draw the best individual as a tree
+    gp.best.draw(block=False)
+
+    # Plot the best individual projected on the data
+    visualize_result(x, y, gp.best.f, block=False)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run Genetic Programming solver to learn a function that fits the problems in the `data/` directory by performing symbolic regression. The outputs functions are also saved in the `results/` directory."
+    )
+    parser.add_argument(
+        "-p",
+        "--profile",
+        action="store_true",
+        help="Enable profiling",
+        required=False,
+        default=False,
+    )
+    parser.add_argument(
+        "-m",
+        "--multiprocessing",
+        action="store_true",
+        help="Enable multiprocessing",
+        required=False,
+        default=False,
+    )
+    parser.add_argument(
+        "-t",
+        "--no-tqdm",
+        action="store_true",
+        help="Disable tqdm",
+        default=False,
+        required=False,
+    )
+    parser.add_argument(
+        "-l",
+        "--live-plot",
+        nargs="?",
+        type=int,
+        help="Enable live plotting (optionally specify the update interval. Default is 50)",
+        const=50,
+        required=False,
+        default=False,
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Force overwrite of existing snapshots",
+        required=False,
+        default=False,
+    )
+    parser.add_argument(
+        "problem", type=int, nargs="?", help="Problem instance to solve", default=None
+    )
+
+    args = parser.parse_args(sys.argv[1:])
+
+    for instance in INSTANCES:
+        if args.problem != instance:
+            continue
+        solve(
+            problem=instance,
+            multiprocessing=args.multiprocessing,
+            tqdm=not args.no_tqdm,
+            live_plot=args.live_plot,
+            ignore_snapshots=args.force,
+            profile=args.profile,
+        )
 
 
 if __name__ == "__main__":
-
-    if len(sys.argv) > 1:
-        PROBLEM = int(sys.argv[1])
-        solve(PROBLEM)
-    else:
-        for PROBLEM in INSTANCES:
-            solve(PROBLEM)
+    main()

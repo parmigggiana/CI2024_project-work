@@ -24,15 +24,15 @@ class Individual:
         else:
             self.rng: np.random.Generator = rng
 
-        if root is None:
-            assert (
-                initialization_method is not None
-            ), "Either initialization method or a tree root must be specified."
-            assert initialization_method in [
-                "full",
-                "grow",
-            ], "Invalid initialization method."
-            assert max_depth is not None, "Maximum depth must be specified."
+        if root is None and initialization_method is not None:
+            # assert (
+            #     initialization_method is not None
+            # ), "Either initialization method or a tree root must be specified."
+            # assert initialization_method in [
+            #     "full",
+            #     "grow",
+            # ], "Invalid initialization method."
+            # assert max_depth is not None, "Maximum depth must be specified."
             self.max_depth = max_depth
             self.initialization_method = initialization_method
 
@@ -48,8 +48,10 @@ class Individual:
                 ch2.append(tmp)
 
                 self.root.append(ch2)
-        else:
+        elif root is not None:
             self.root = root
+        else:
+            print("No root or initialization method specified")
 
     @property
     def f(self):
@@ -124,23 +126,17 @@ class Individual:
     def clone(self):
         clone = Individual(
             root=self.root.clone(),
-            rng=self.rng,
+            rng=self.rng.integers(np.iinfo(np.uint32).max, dtype=np.uint32),
             input_size=self.input_size,
         )
-        # try:
-        #     delattr(clone, "simplified_root")
-        # except AttributeError:
-        #     pass
         return clone
 
     @property
     def depth(self):
-        return max([n.depth for n in self.nodes])
+        return np.max([n.depth for n in self.nodes])
 
     def simplify(self, zero: float = 1e-9):
-        if not hasattr(self, "simplified_root") or not self.simplified_root:
-            self.root = self.root.simplify(zero, is_root=True)
-            self.simplified_root = True
+        self.root.simplify(zero, is_root=True)
 
     def draw(self, block=True, ax=None):
         self.root.draw(block=block, ax=ax)

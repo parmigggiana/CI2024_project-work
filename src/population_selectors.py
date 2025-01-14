@@ -23,6 +23,7 @@ class BalancedDeterministicSelector(Selector):
         if len(population) < 800:
             return DeterministicSelector.select(population, size, fitness_function)
 
+        population = population[[fitness_function(ind) >= 0 for ind in population]]
         sorted_population = sorted(
             population, key=lambda ind: fitness_function(ind), reverse=True
         )
@@ -40,6 +41,7 @@ class FitnessHoleSelector(Selector):
         # Instead of tournament with 2 individuals
         # use n individuals but with fixed amount of tournaments so the population size is constant
         selected = []
+        population = population[[fitness_function(ind) >= 0 for ind in population]]
         for tournament in np.array_split(population, size):
             if len(tournament) == 1:
                 selected.append(tournament[0])
@@ -47,7 +49,7 @@ class FitnessHoleSelector(Selector):
 
             fittest = np.argmax([fitness_function(ind) for ind in tournament])
             shallowest = np.argmin([ind.depth for ind in tournament])
-            if rng.random() < 0.8:
+            if rng.random() < 0.7:
                 ind = tournament[fittest]
             else:
                 ind = tournament[shallowest]
@@ -60,7 +62,11 @@ class FitnessProportionalSelector(Selector):
     @classmethod
     def select(cls, population, fitness_function, rng):
         p = np.array(
-            [fitness_function(individual) for individual in population],
+            [
+                fitness_function(individual)
+                for individual in population
+                if fitness_function(individual) >= 0
+            ],
             dtype=float,
         )
         p -= np.min(p) - 1e-9
@@ -78,11 +84,14 @@ class FitnessProportionalSelector(Selector):
 
 class TournamentSelector(Selector):
     @classmethod
-    def select(cls, population, fitness_function, tournaments=None, **kwargs):
+    def select(
+        cls, population: np.ndarray, fitness_function, tournaments=None, **kwargs
+    ):
         if tournaments is None:
             tournaments = int(np.sqrt(len(population)))
 
         selected = []
+        population = population[[fitness_function(ind) >= 0 for ind in population]]
         # Split population into tournaments
         # use numpy array split to split the population into tournaments
         # then use np.argmax to find the index of the winner of each tournament

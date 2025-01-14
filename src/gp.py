@@ -260,10 +260,9 @@ class GP:
         self.stale_iters = 0
 
         if parallelize:
-            executor = ProcessPoolExecutor()
+            self.executor = ProcessPoolExecutor()
         else:
-            executor = None
-        self.executor = executor
+            self.executor = None
 
         if use_tqdm:
             from tqdm import tqdm
@@ -272,7 +271,7 @@ class GP:
 
         self.population = np.empty(shape=(init_population_size,), dtype=Individual)
         self.history = np.empty((max_generations, self.population_size), dtype=float)
-        self.init_population(init_population_size, init_max_depth, executor)
+        self.init_population(init_population_size, init_max_depth, self.executor)
 
         for hook in self._before_loop_hooks:
             hook(self)
@@ -290,13 +289,13 @@ class GP:
                 parent_selector=self._parent_selector,
                 fitness_function=self._fitness_function,
                 input_size=self.input_size,
-                executor=executor,
+                executor=self.executor,
                 force_simplify=force_simplify,
             )
 
-            assert (
-                new_gen is not None
-            ), f"Genetic operator {genetic_operator} did not generate any new individual"
+            # assert (
+            #     new_gen is not None
+            # ), f"Genetic operator {genetic_operator} did not generate any new individual"
 
             population = np.concatenate((self.population, new_gen), axis=0)
 
@@ -337,8 +336,8 @@ class GP:
         for hook in self._after_loop_hooks:
             hook(self)
 
-        if executor:
-            executor.shutdown()
+        if self.executor:
+            self.executor.shutdown()
 
     def init_population(self, population_size, max_depth, executor: Executor = None):
         # I can't share the rng because the processes would be generating the same random numbers
@@ -391,13 +390,15 @@ class GP:
         )
         plt.xlabel("Generation")
         plt.ylabel("Fitness")
-        plt.yscale("log")
+        # plt.yscale("log")
         plt.tight_layout()
         plt.show(block=block)
 
     @property
     def best(self):
-        return self.population[0]
+        return self.population[
+            np.argmax([self._fitness_function(ind) for ind in self.population])
+        ]
 
     @property
     def best_fitness(self):
