@@ -196,6 +196,8 @@ def visualize_result(x, y, f, block=None):
         dum = np.zeros_like(X[0])
         X = np.stack((X[0], X[1], dum), axis=0)
         Y1 = f(X)
+        if Y1.ndim == 0:
+            Y1 = np.full((len(X0), len(X1)), Y1)
         ax.plot_surface(X[0], X[1], Y1, alpha=0.5, color="r", edgecolor="none")
 
         ax = fig.add_subplot(132, projection="3d")
@@ -206,6 +208,8 @@ def visualize_result(x, y, f, block=None):
         X = np.meshgrid(X0, X2)
         X = np.stack((X[0], dum, X[1]), axis=0)
         Y2 = f(X)
+        if Y2.ndim == 0:
+            Y2 = np.full((len(X0), len(X2)), Y2)
         ax.plot_surface(X[0], X[2], Y2, alpha=0.5, color="r")
 
         ax = fig.add_subplot(133, projection="3d")
@@ -216,6 +220,8 @@ def visualize_result(x, y, f, block=None):
         X = np.meshgrid(X1, X2)
         X = np.stack((dum, X[0], X[1]), axis=0)
         Y3 = f(X)
+        if Y3.ndim == 0:
+            Y3 = np.full((len(X1), len(X2)), Y3)
         ax.plot_surface(X[1], X[2], Y3, alpha=0.5, color="r")
 
         fig.colorbar(
@@ -234,7 +240,7 @@ def visualize_result(x, y, f, block=None):
 def fine_tune_constants(gp: GP):
     # Iterate until there's no improvement in the best individual
     print("Starting fine tuning")
-    best_fitness = gp._fitness_function(gp.best)
+    new_best_fitness = gp._fitness_function(gp.best)
     while True:
         new_gen = FineTuneMutation.get_new_generation(
             gp.population,
@@ -248,8 +254,9 @@ def fine_tune_constants(gp: GP):
             size=gp.population_size,
             fitness_function=gp._fitness_function,
         )
+        best_fitness = new_best_fitness
         new_best_fitness = gp._fitness_function(gp.best)
-        if new_best_fitness / best_fitness <= 1 + 1e-5:
+        if new_best_fitness / best_fitness <= 1 + 1e-3:
             break
 
 
