@@ -22,6 +22,9 @@ class NodeType(Enum):
     EXP = 8
     ABS = 9
     LOG = 10
+    POW = 11
+    ARCSIN = 12
+    ARCCOS = 13
 
 
 valid_children = {
@@ -31,11 +34,14 @@ valid_children = {
     NodeType.SUB: 2,
     NodeType.MUL: 2,
     NodeType.DIV: 2,
+    NodeType.POW: 2,
     NodeType.SIN: 1,
     NodeType.COS: 1,
     NodeType.EXP: 1,
     NodeType.ABS: 1,
     NodeType.LOG: 1,
+    NodeType.ARCSIN: 1,
+    NodeType.ARCCOS: 1,
 }
 
 symbols = {
@@ -43,11 +49,14 @@ symbols = {
     NodeType.SUB: "-",
     NodeType.MUL: "*",
     NodeType.DIV: "/",
+    NodeType.POW: "pow",
     NodeType.SIN: "sin",
     NodeType.COS: "cos",
     NodeType.EXP: "exp",
     NodeType.ABS: "abs",
     NodeType.LOG: "log",
+    NodeType.ARCSIN: "arcsin",
+    NodeType.ARCCOS: "arccos",
 }
 symbols = {k: v for k, v in symbols.items() if k in valid_children}
 
@@ -94,6 +103,8 @@ class Node:
                     return self._children[0].f(x) / self._children[1].f(x)
                 except ZeroDivisionError:
                     return np.inf
+            case NodeType.POW:
+                return np.power(self._children[0].f(x), self._children[1].f(x))
             case NodeType.SIN:
                 return np.sin(self._children[0].f(x))
             case NodeType.COS:
@@ -124,6 +135,8 @@ class Node:
                 return f"({first_child} * {second_child})"
             case NodeType.DIV:
                 return f"({first_child} / {second_child})"
+            case NodeType.POW:
+                return f"pow({first_child}, {second_child})"
             case NodeType.SIN:
                 return f"sin({first_child})"
             case NodeType.COS:
@@ -247,7 +260,7 @@ class Node:
             if (
                 simplified_root.type == NodeType.DIV
                 and simplified_root._children[0].type == NodeType.CONSTANT
-                and simplified_root._children[0].value == 0
+                and -zero <= simplified_root._children[0].value <= zero
             ):
                 simplified_root.type = NodeType.CONSTANT
                 simplified_root.value = 0
@@ -309,15 +322,65 @@ class Node:
                 simplified_root.value = simplified_root._children[0].value
                 simplified_root._children = simplified_root._children[0].children
 
+            # 1 * a -> a
+            if (
+                simplified_root.type == NodeType.MUL
+                and simplified_root._children[0].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[0].value - 1 <= zero
+            ):
+                simplified_root.type = simplified_root._children[1].type
+                simplified_root.value = simplified_root._children[1].value
+                simplified_root._children = simplified_root._children[1].children
+
             # a / 1 -> a
             if (
                 simplified_root.type == NodeType.DIV
                 and simplified_root._children[1].type == NodeType.CONSTANT
-                and simplified_root._children[1].value == 1
+                and -zero <= simplified_root._children[1].value - 1 <= zero
             ):
                 simplified_root.type = simplified_root._children[0].type
                 simplified_root.value = simplified_root._children[0].value
                 simplified_root._children = simplified_root._children[0].children
+
+            # x ^ 0 -> 1
+            if (
+                simplified_root.type == NodeType.POW
+                and simplified_root._children[1].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[1].value <= zero
+            ):
+                simplified_root.type = NodeType.CONSTANT
+                simplified_root.value = 1
+                simplified_root._children = []
+
+            # x ^ 1 -> x
+            if (
+                simplified_root.type == NodeType.POW
+                and simplified_root._children[1].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[1].value - 1 <= zero
+            ):
+                simplified_root.type = simplified_root._children[0].type
+                simplified_root.value = simplified_root._children[0].value
+                simplified_root._children = simplified_root._children[0].children
+
+            # 0 ^ x -> 0
+            if (
+                simplified_root.type == NodeType.POW
+                and simplified_root._children[0].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[0].value <= zero
+            ):
+                simplified_root.type = NodeType.CONSTANT
+                simplified_root.value = 0
+                simplified_root._children = []
+
+            # 1 ^ x -> 1
+            if (
+                simplified_root.type == NodeType.POW
+                and simplified_root._children[0].type == NodeType.CONSTANT
+                and -zero <= simplified_root._children[0].value - 1 <= zero
+            ):
+                simplified_root.type = NodeType.CONSTANT
+                simplified_root.value = 1
+                simplified_root._children = []
 
             # a + (b + x) -> [a+b] + x
             # a + (b - x) -> [a+b] - x
@@ -483,8 +546,46 @@ class Node:
                     simplified_root.children[0].children[0].children
                 )
 
+            # log(1) -> 0
+            if (
+                simplified_root.type == NodeType.LOG
+                and simplified_root.children[0].type == NodeType.CONSTANT
+                and zero <= simplified_root.children[0].value - 1 <= zero
+            ):
+                simplified_root.type = NodeType.CONSTANT
+                simplified_root.value = 0
+                simplified_root._children = []
+
             hashed_root = new_hash
             new_hash = hash(simplified_root)
+
+            # sin(arcsin(x)) -> x
+            # cos(arccos(x)) -> x
+            # arcsin(sin(x)) -> x
+            # arccos(cos(x)) -> x
+            if (
+                (
+                    simplified_root.type == NodeType.SIN
+                    and simplified_root.children[0].type == NodeType.ARCSIN
+                )
+                or (
+                    simplified_root.type == NodeType.COS
+                    and simplified_root.children[0].type == NodeType.ARCCOS
+                )
+                or (
+                    simplified_root.type == NodeType.ARCSIN
+                    and simplified_root.children[0].type == NodeType.SIN
+                )
+                or (
+                    simplified_root.type == NodeType.ARCCOS
+                    and simplified_root.children[0].type == NodeType.COS
+                )
+            ):
+                simplified_root.type = simplified_root.children[0].children[0].type
+                simplified_root.value = simplified_root.children[0].children[0].value
+                simplified_root._children = (
+                    simplified_root.children[0].children[0].children
+                )
 
         # Reset depths and parents
         nodes = [simplified_root]
