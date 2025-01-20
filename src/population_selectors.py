@@ -41,15 +41,18 @@ class FitnessHoleSelector(Selector):
         # Instead of tournament with 2 individuals
         # use n individuals but with fixed amount of tournaments so the population size is constant
         selected = []
-        population = population[[fitness_function(ind) >= 0 for ind in population]]
-        for tournament in np.array_split(population, size):
+        pos_population = population[[fitness_function(ind) >= 0 for ind in population]]
+        if len(pos_population) <= size:
+            pos_population = population
+
+        for tournament in np.array_split(pos_population, size):
             if len(tournament) == 1:
                 selected.append(tournament[0])
                 continue
-
             fittest = np.argmax([fitness_function(ind) for ind in tournament])
             shallowest = np.argmin([ind.depth for ind in tournament])
-            if rng.random() < 0.7:
+
+            if rng.random() < 0.8:
                 ind = tournament[fittest]
             else:
                 ind = tournament[shallowest]
@@ -85,13 +88,17 @@ class FitnessProportionalSelector(Selector):
 class TournamentSelector(Selector):
     @classmethod
     def select(
-        cls, population: np.ndarray, fitness_function, tournaments=None, **kwargs
+        cls,
+        population: np.ndarray,
+        fitness_function,
+        tournaments=None,
+        **kwargs,
     ):
+
+        selected = []
         if tournaments is None:
             tournaments = int(np.sqrt(len(population)))
 
-        selected = []
-        population = population[[fitness_function(ind) >= 0 for ind in population]]
         # Split population into tournaments
         # use numpy array split to split the population into tournaments
         # then use np.argmax to find the index of the winner of each tournament
