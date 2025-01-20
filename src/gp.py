@@ -13,6 +13,7 @@ from genetic_operators import (
     HoistMutation,
     PermutationMutation,
     PointMutation,
+    ShrinkMutation,
     SubtreeMutation,
 )
 from individual import Individual
@@ -69,7 +70,7 @@ class GP:
     def _genetic_operators(self):
         return self._exploration_operators + self._exploitation_operators
 
-    @cached_property
+    @property
     def _genetic_operators_base_weights(self):
         return np.concatenate(
             [
@@ -78,14 +79,14 @@ class GP:
             ]
         )
 
-    @cached_property
+    @property
     def __bias(self):
         return np.array(
             [1 - self._exploitation_bias] * len(self._exploration_operators_weights)
             + [self._exploitation_bias] * len(self._exploitation_operators_weights)
         )
 
-    @cached_property
+    @property
     def _genetic_operators_probs(self):
         weights = self._genetic_operators_base_weights * self.__bias
         return weights / np.sum(weights)
@@ -124,24 +125,24 @@ class GP:
         # self._exploitation_bias += (1 - self._exploitation_bias) * factor
         self._exploitation_bias = np.clip(self._exploitation_bias + factor, 0, 1)
 
-        self.clear_cache("__bias")
-        self.clear_cache("_genetic_operators_probs")
+        # self.clear_cache("__bias")
+        # self.clear_cache("_genetic_operators_probs")
 
     def add_exploitation_operator(self, genetic_operator, weight):
         op = self.get_genetic_operator(genetic_operator)
         self._exploitation_operators.append(op)
         self._exploitation_operators_weights.append(weight)
-        self.clear_cache("_genetic_operators_base_weights")
-        self.clear_cache("__bias")
-        self.clear_cache("_genetic_operators_probs")
+        # self.clear_cache("_genetic_operators_base_weights")
+        # self.clear_cache("__bias")
+        # self.clear_cache("_genetic_operators_probs")
 
     def add_exploration_operator(self, genetic_operator, weight):
         op = self.get_genetic_operator(genetic_operator)
         self._exploration_operators.append(op)
         self._exploration_operators_weights.append(weight)
-        self.clear_cache("_genetic_operators_base_weights")
-        self.clear_cache("__bias")
-        self.clear_cache("_genetic_operators_probs")
+        # self.clear_cache("_genetic_operators_base_weights")
+        # self.clear_cache("__bias")
+        # self.clear_cache("_genetic_operators_probs")
 
     def get_genetic_operator(self, genetic_operator):
         if isinstance(genetic_operator, str):
@@ -156,6 +157,8 @@ class GP:
                     genetic_operator = PermutationMutation
                 case "collapse":
                     genetic_operator = CollapseMutation
+                case "shrink":
+                    genetic_operator = ShrinkMutation
                 case "expansion":
                     genetic_operator = ExpansionMutation
                 case "xover" | "crossover" | "cross":
@@ -175,9 +178,9 @@ class GP:
         self._exploitation_operators = []
         self._exploration_operators_weights = []
         self._exploitation_operators_weights = []
-        self.clear_cache("_genetic_operators_base_weights")
-        self.clear_cache("__bias")
-        self.clear_cache("_genetic_operators_probs")
+        # self.clear_cache("_genetic_operators_base_weights")
+        # self.clear_cache("__bias")
+        # self.clear_cache("_genetic_operators_probs")
 
     def set_survivor_selector(self, selector):
         if isinstance(selector, str):

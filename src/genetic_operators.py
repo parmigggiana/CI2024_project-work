@@ -189,7 +189,7 @@ class SubtreeMutation(Mutation):
 
         subtree = Individual(
             initialization_method="grow",
-            max_depth=4,
+            max_depth=individual.depth - node.depth,
             input_size=individual.input_size,
         ).root
         if node.parent is None:
@@ -233,16 +233,13 @@ class PermutationMutation(Mutation):
 class HoistMutation(Mutation):
     @classmethod
     def _mutate(cls, individual, rng, **kwargs):
-        valid_nodes = [
-            node for node in individual.nodes if valid_children[node.type] == 2
-        ]
-        if len(valid_nodes) > 1:
+        valid_nodes = [node for node in individual.nodes if node.parent is not None]
+        if valid_nodes:
             node = rng.choice(valid_nodes)
-            while node.parent is None:
-                node = rng.choice(valid_nodes)
-            individual.root = Node(node.type, node.value)
+            individual.root.type = node.type
+            individual.root.value = node.value
             individual.root._children = node.children
-            # Set depths
+
             nodes = [
                 individual.root,
             ]
@@ -255,12 +252,28 @@ class HoistMutation(Mutation):
         return individual
 
 
+class ShrinkMutation(Mutation):
+    @classmethod
+    def _mutate(cls, individual, rng, **kwargs):
+
+        node1 = rng.choice(individual.nodes)
+        node2 = rng.choice(node1.flatten)
+        if node2.parent is None:
+            individual.root = node2
+        else:
+            node1.parent._children.remove(node1)
+            node1.parent.append(node2)
+
+        return individual
+
+
 class CollapseMutation(Mutation):
     @classmethod
     def _mutate(cls, individual, rng, **kwargs):
         node = rng.choice(individual.nodes)
-        n_type = rng.choice(terminal_set)
-        new_node = individual.get_random_node(n_type)
+        # n_type = rng.choice(terminal_set)
+        # new_node = individual.get_random_node(n_type)
+        new_node = Node(NodeType.CONSTANT, rng.random())
         if node.parent is None:
             individual.root = new_node
         else:
@@ -280,7 +293,7 @@ class ExpansionMutation(Mutation):
             node = rng.choice(valid_nodes)
             subtree = Individual(
                 initialization_method="grow",
-                max_depth=4,
+                max_depth=individual.depth - node.depth,
                 input_size=individual.input_size,
             ).root
             if node.parent is None:
