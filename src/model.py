@@ -115,6 +115,10 @@ class Node:
                 return np.abs(self._children[0].f(x))
             case NodeType.LOG:
                 return np.log(self._children[0].f(x))
+            case NodeType.ARCSIN:
+                return np.arcsin(self._children[0].f(x))
+            case NodeType.ARCCOS:
+                return np.arccos(self._children[0].f(x))
 
     def __str__(self):
         # Print the tree in a human-readable format
@@ -147,6 +151,10 @@ class Node:
                 return f"abs({first_child})"
             case NodeType.LOG:
                 return f"log({first_child})"
+            case NodeType.ARCSIN:
+                return f"arcsin({first_child})"
+            case NodeType.ARCCOS:
+                return f"arccos({first_child})"
 
     @property
     def flatten(self):
@@ -507,15 +515,118 @@ class Node:
                 )
             ):
                 children = [None, None]
-                # if simplified_root.children[1].type == NodeType.MUL:
-                #     children[0] = simplified_root.children[0].children[0]
-                #     children[1] = simplified_root.children[1]
-                #     children[1].children[0].value += (
-                #         simplified_root.children[0].children[1].children[0].value
-                #     )
-                #     simplified_root._children = children
-                # elif simplified_root.children[1].type == NodeType.DIV:
-                #     ...
+                if simplified_root.children[1].type == NodeType.MUL:
+                    children[0] = simplified_root.children[0].children[0]
+                    children[1] = simplified_root.children[1]
+                    children[1].children[0].value += (
+                        simplified_root.children[0].children[1].children[0].value
+                    )
+                    simplified_root._children = children
+                elif simplified_root.children[1].type == NodeType.DIV:
+                    print("div chain of + nodes")
+                    ...
+
+            # x + x -> 2*x
+            if (
+                simplified_root.type == NodeType.ADD
+                and simplified_root.children[0] == simplified_root.children[1]
+            ):
+                simplified_root.type = NodeType.MUL
+                n = Node(NodeType.CONSTANT, 2)
+                simplified_root._children = [simplified_root.children[0], n]
+
+            # x + 2*x -> 3*x
+            # x + x*2 -> 3*x
+            # 2*x + x -> 3*x
+            # x*2 + x -> 3*x
+            if simplified_root.type == NodeType.ADD:
+                if (
+                    simplified_root.children[0].type == NodeType.MUL
+                    and simplified_root.children[0].children[0].type
+                    == NodeType.CONSTANT
+                    and simplified_root.children[0].children[1]
+                    == simplified_root.children[1]
+                ):
+                    simplified_root.type = NodeType.MUL
+                    n = Node(
+                        NodeType.CONSTANT,
+                        1 + simplified_root.children[0].children[0].value,
+                    )
+                    simplified_root._children = [simplified_root.children[1], n]
+                elif (
+                    simplified_root.children[0].type == NodeType.MUL
+                    and simplified_root.children[0].children[1].type
+                    == NodeType.CONSTANT
+                    and simplified_root.children[0].children[0]
+                    == simplified_root.children[1]
+                ):
+                    simplified_root.type = NodeType.MUL
+                    n = Node(
+                        NodeType.CONSTANT,
+                        1 + simplified_root.children[0].children[1].value,
+                    )
+                    simplified_root._children = [simplified_root.children[1], n]
+                elif (
+                    simplified_root.children[1].type == NodeType.MUL
+                    and simplified_root.children[1].children[0].type
+                    == NodeType.CONSTANT
+                    and simplified_root.children[1].children[1]
+                    == simplified_root.children[0]
+                ):
+                    simplified_root.type = NodeType.MUL
+                    n = Node(
+                        NodeType.CONSTANT,
+                        1 + simplified_root.children[1].children[0].value,
+                    )
+                    simplified_root._children = [simplified_root.children[0], n]
+                elif (
+                    simplified_root.children[1].type == NodeType.MUL
+                    and simplified_root.children[1].children[1].type
+                    == NodeType.CONSTANT
+                    and simplified_root.children[1].children[0]
+                    == simplified_root.children[0]
+                ):
+                    simplified_root.type = NodeType.MUL
+                    n = Node(
+                        NodeType.CONSTANT,
+                        1 + simplified_root.children[1].children[1].value,
+                    )
+                    simplified_root._children = [simplified_root.children[0], n]
+
+            # x*x -> x^2
+            if (
+                simplified_root.type == NodeType.MUL
+                and simplified_root.children[0] == simplified_root.children[1]
+            ):
+                simplified_root.type = NodeType.POW
+                n = Node(NodeType.CONSTANT, 2)
+                simplified_root._children = [simplified_root.children[0], n]
+
+            # x^2 * x -> x^3
+            # x * x^2 -> x^3
+            if simplified_root.type == NodeType.MUL:
+                if (
+                    simplified_root.children[0].type == NodeType.POW
+                    and simplified_root.children[0].children[0]
+                    == simplified_root.children[1]
+                ):
+                    simplified_root.type = NodeType.POW
+                    n = Node(
+                        NodeType.CONSTANT,
+                        1 + simplified_root.children[0].children[1].value,
+                    )
+                    simplified_root._children = [simplified_root.children[1], n]
+                elif (
+                    simplified_root.children[1].type == NodeType.POW
+                    and simplified_root.children[1].children[0]
+                    == simplified_root.children[0]
+                ):
+                    simplified_root.type = NodeType.POW
+                    n = Node(
+                        NodeType.CONSTANT,
+                        1 + simplified_root.children[1].children[1].value,
+                    )
+                    simplified_root._children = [simplified_root.children[0], n]
 
             # abs(abs(a)) -> abs(a)
             if (
@@ -556,9 +667,6 @@ class Node:
                 simplified_root.value = 0
                 simplified_root._children = []
 
-            hashed_root = new_hash
-            new_hash = hash(simplified_root)
-
             # sin(arcsin(x)) -> x
             # cos(arccos(x)) -> x
             # arcsin(sin(x)) -> x
@@ -586,6 +694,10 @@ class Node:
                 simplified_root._children = (
                     simplified_root.children[0].children[0].children
                 )
+
+            # do another pass if the tree has changed
+            hashed_root = new_hash
+            new_hash = hash(simplified_root)
 
         # Reset depths and parents
         nodes = [simplified_root]
