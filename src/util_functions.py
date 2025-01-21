@@ -9,18 +9,24 @@ from gp import GP
 from population_selectors import DeterministicSelector
 
 
-def fitness(x, y, ind):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        try:
-            mse = np.mean((ind.f(x) - y) ** 2)
-        except ZeroDivisionError:
-            return 0
-    fitness = 1 / mse / np.sqrt(ind.depth)
-    if np.isnan(fitness) or np.isinf(fitness):
-        return -1
+def build_fitness_func(x, y, f):
+    range = y.max() - y.min()
 
-    return fitness
+    def ff(ind):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            try:
+                mse = np.mean((ind.f(x) - y) ** 2)
+                nrmse = np.sqrt(mse) / range
+            except ZeroDivisionError:
+                return -1
+        fitness = f(ind, nrmse)
+        if np.isnan(fitness) or np.isinf(fitness):
+            return -1
+
+        return fitness
+
+    return ff
 
 
 def early_stop(gp: GP, window: int, threshold: float):
@@ -100,9 +106,9 @@ def visualize_result(x, y, f, block=None):
     DISTANCE_LABEL = "Distance from predicted value"
     # plot the best f as a plane on the set
     try:
-        X0 = np.arange(x[0].min(), x[0].max(), (x[0].max() - x[0].min()) / 20)
-        X1 = np.arange(x[1].min(), x[1].max(), (x[1].max() - x[1].min()) / 20)
-        X2 = np.arange(x[2].min(), x[2].max(), (x[2].max() - x[2].min()) / 20)
+        X0 = np.linspace(x[0].min(), x[0].max(), 40)
+        X1 = np.linspace(x[1].min(), x[1].max(), 40)
+        X2 = np.linspace(x[2].min(), x[2].max(), 40)
     except IndexError:
         pass
 
@@ -110,6 +116,7 @@ def visualize_result(x, y, f, block=None):
     distances = np.abs(y - f(x))
 
     fig, ax = plt.subplots()
+
     if x.shape[0] == 1:  # Simple 2D plot
         scatter = ax.scatter(x[0], y, c=distances, cmap="magma_r")
         ax.plot(X0, f([X0]), c="r")
@@ -234,6 +241,8 @@ def visualize_result(x, y, f, block=None):
 
     else:
         print("Cannot visualize data with more than 3 dimensions")
+        exit()
+
     plt.show(block=block)
 
 
@@ -241,6 +250,7 @@ def fine_tune_constants(gp: GP):
     # Iterate until there's no improvement in the best individual
     print("Starting fine tuning")
     new_best_fitness = gp._fitness_function(gp.best)
+    stale_iters = 0
     while True:
         new_gen = FineTuneMutation.get_new_generation(
             gp.population,
@@ -256,7 +266,12 @@ def fine_tune_constants(gp: GP):
         )
         best_fitness = new_best_fitness
         new_best_fitness = gp._fitness_function(gp.best)
-        if new_best_fitness / best_fitness <= 1 + 1e-3:
+        if new_best_fitness == best_fitness:
+            stale_iters += 1
+        else:
+            stale_iters = 0
+
+        if stale_iters >= 3:
             break
 
 
@@ -267,7 +282,7 @@ def balance_exploitation(gp, mod=1, factor=0.01):
     if not hasattr(balance_exploitation, "factor"):
         balance_exploitation.factor = factor
 
-    if gp._exploitation_bias <= 0.2 or gp._exploitation_bias >= 0.8:
+    if gp._exploitation_bias <= 0.1 or gp._exploitation_bias >= 0.8:
         balance_exploitation.factor = -balance_exploitation.factor
 
     if gp.stale_iters >= mod:

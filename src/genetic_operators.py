@@ -151,6 +151,7 @@ class Mutation(GeneticOperator):
                     futures.append(f)
             for i, future in enumerate(as_completed(futures)):
                 new_gen[i] = future.result()
+
         else:
             for i, individual in enumerate(population):
                 if rng.random() < mutation_rate:
@@ -255,10 +256,9 @@ class HoistMutation(Mutation):
 class ShrinkMutation(Mutation):
     @classmethod
     def _mutate(cls, individual, rng, **kwargs):
-
         node1 = rng.choice(individual.nodes)
         node2 = rng.choice(node1.flatten)
-        if node2.parent is None:
+        if node1.parent is None:
             individual.root = node2
         else:
             node1.parent._children.remove(node1)
