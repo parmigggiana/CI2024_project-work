@@ -114,7 +114,6 @@ def visualize_result(x, y, f, block=None):
 
     # Color the scatter plot by the distance to the plane
     distances = np.abs(y - f(x))
-
     fig, ax = plt.subplots()
 
     if x.shape[0] == 1:  # Simple 2D plot
@@ -123,10 +122,13 @@ def visualize_result(x, y, f, block=None):
         fig.colorbar(scatter, ax=ax, label=DISTANCE_LABEL)
     elif x.shape[0] == 2:  # 3D plot
         X = np.meshgrid(X0, X1)
-        Y = np.array(f(X))
+        Y = f(X)
 
-        if Y.ndim == 0:
+        if isinstance(Y, np.number) or isinstance(Y, int):
             Y = np.full((len(X0), len(X1)), Y)
+        # elif Y.ndim == 1:
+        #     Y = Y[:, np.newaxis]
+
         ax.axis("off")
         ax = fig.add_subplot(111, projection="3d")
         ax.set_xlabel("x[0]")
