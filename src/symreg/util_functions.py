@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
 
-from genetic_operators import FineTuneMutation
-from gp import GP
-from population_selectors import DeterministicSelector
+from symreg.genetic_operators import FineTuneMutation
+from symreg.gp import GP
+from symreg.population_selectors import DeterministicSelector
 
 
 def build_fitness_func(x, y, f):

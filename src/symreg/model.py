@@ -140,7 +140,7 @@ class Node:
             case NodeType.DIV:
                 return f"({first_child} / {second_child})"
             case NodeType.POW:
-                return f"pow({first_child}, {second_child})"
+                return f"power({first_child}, {second_child})"
             case NodeType.SIN:
                 return f"sin({first_child})"
             case NodeType.COS:
@@ -410,17 +410,28 @@ class Node:
 
             # x + (y - x) -> x1
             # x - (x - y) -> x1
-            # if (
-            #     simplified_root.type == NodeType.ADD
-            #     and simplified_root.children[1].type == NodeType.SUB
-            #     and simplified_root.children[1].children[1] == simplified_root.children[0]
-            # ):
-            #     simplified_root.type = simplified_root.children[1].children[0].type
-            #     simplified_root.value = simplified_root.children[1].children[0].value
-            #     simplified_root._children = simplified_root.children[1].children[0].children
-            # elif (
-            #     simplified_root.type == NodeType.ADD
-            #     and simplified_root.children[0].type == NodeType.SUB
+            if (
+                simplified_root.type == NodeType.ADD
+                and simplified_root.children[1].type == NodeType.SUB
+                and simplified_root.children[1].children[1]
+                == simplified_root.children[0]
+            ):
+                simplified_root.type = simplified_root.children[1].children[0].type
+                simplified_root.value = simplified_root.children[1].children[0].value
+                simplified_root._children = (
+                    simplified_root.children[1].children[0].children
+                )
+            elif (
+                simplified_root.type == NodeType.ADD
+                and simplified_root.children[0].type == NodeType.SUB
+                and simplified_root.children[0].children[1]
+                == simplified_root.children[1]
+            ):
+                simplified_root.type = simplified_root.children[0].children[0].type
+                simplified_root.value = simplified_root.children[0].children[0].value
+                simplified_root._children = (
+                    simplified_root.children[0].children[0].children
+                )
 
             # a * (b * x) -> [a*b] * x
             # a * (b / x) -> [a*b] / x
@@ -609,6 +620,8 @@ class Node:
                     simplified_root.children[0].type == NodeType.POW
                     and simplified_root.children[0].children[0]
                     == simplified_root.children[1]
+                    and simplified_root.children[0].children[1].type
+                    == NodeType.CONSTANT
                 ):
                     simplified_root.type = NodeType.POW
                     n = Node(
@@ -620,6 +633,8 @@ class Node:
                     simplified_root.children[1].type == NodeType.POW
                     and simplified_root.children[1].children[0]
                     == simplified_root.children[0]
+                    and simplified_root.children[1].children[1].type
+                    == NodeType.CONSTANT
                 ):
                     simplified_root.type = NodeType.POW
                     n = Node(

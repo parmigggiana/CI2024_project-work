@@ -1,30 +1,21 @@
 import logging
 from concurrent.futures import Executor, ProcessPoolExecutor, as_completed
-from functools import cached_property
 
 import numpy as np
 from numpy.random import SFC64
 
-from genetic_operators import (
-    CollapseMutation,
-    Crossover,
-    ExpansionMutation,
-    GeneticOperator,
-    HoistMutation,
-    PermutationMutation,
-    PointMutation,
-    ShrinkMutation,
-    SubtreeMutation,
-)
-from individual import Individual
-from niching import Extinction
-from population_selectors import (
-    BalancedDeterministicSelector,
-    DeterministicSelector,
-    FitnessHoleSelector,
-    FitnessProportionalSelector,
-    TournamentSelector,
-)
+from symreg.genetic_operators import (CollapseMutation, Crossover,
+                                      ExpansionMutation, GeneticOperator,
+                                      HoistMutation, PermutationMutation,
+                                      PointMutation, ShrinkMutation,
+                                      SubtreeMutation)
+from symreg.individual import Individual
+from symreg.niching import Extinction
+from symreg.population_selectors import (BalancedDeterministicSelector,
+                                         DeterministicSelector,
+                                         FitnessHoleSelector,
+                                         FitnessProportionalSelector,
+                                         TournamentSelector)
 
 log = logging.getLogger(__name__)
 

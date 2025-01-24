@@ -23,15 +23,11 @@ import warnings
 from pathlib import Path
 
 import numpy as np
-from numpy.random import SFC64
-
 from gp import GP
-from util_functions import (
-    balance_exploitation,
-    build_fitness_func,
-    early_stop,
-    fine_tune_constants,
-)
+from matplotlib import pyplot as plt
+from numpy.random import SFC64
+from util_functions import (balance_exploitation, build_fitness_func,
+                            early_stop, fine_tune_constants)
 from util_functions import live_plot as live_plot_fn
 from util_functions import visualize_result
 
@@ -63,9 +59,9 @@ INSTANCES = {
     3: {
         "POPULATION_SIZE": 500,
         "MAX_DEPTH": 5,
-        "MAX_GENERATIONS": 2000,
-        "EARLY_STOP_WINDOW_SIZE": 400,
-        "FITNESS_FUNCTION": lambda ind, mse: 1 / mse / np.sqrt(len(ind.nodes)),
+        "MAX_GENERATIONS": 100,
+        "EARLY_STOP_WINDOW_SIZE": 50,
+        "FITNESS_FUNCTION": lambda ind, mse: 1 / mse - 0.01 * len(ind.nodes),
     },
     4: {
         "POPULATION_SIZE": 500,
@@ -75,11 +71,11 @@ INSTANCES = {
         "FITNESS_FUNCTION": lambda ind, mse: 1 / mse / np.sqrt(len(ind.nodes)),
     },
     5: {
-        "POPULATION_SIZE": 1000,
+        "POPULATION_SIZE": 500,
         "MAX_DEPTH": 5,
-        "MAX_GENERATIONS": 3000,
-        "EARLY_STOP_WINDOW_SIZE": 3000,
-        "FITNESS_FUNCTION": lambda ind, mse: 1 / mse,  # - 1e-9 * len(ind.nodes),
+        "MAX_GENERATIONS": 300,
+        "EARLY_STOP_WINDOW_SIZE": 100,
+        "FITNESS_FUNCTION": lambda ind, mse: 1 / mse - 0.0001 * len(ind.nodes),
     },
     6: {
         "POPULATION_SIZE": 500,
@@ -91,9 +87,9 @@ INSTANCES = {
     7: {
         "POPULATION_SIZE": 500,
         "MAX_DEPTH": 5,
-        "MAX_GENERATIONS": 1000,
-        "EARLY_STOP_WINDOW_SIZE": 50,
-        "FITNESS_FUNCTION": lambda ind, mse: 1 / mse - 0.0001 * len(ind.nodes),
+        "MAX_GENERATIONS": 50,
+        "EARLY_STOP_WINDOW_SIZE": 30,
+        "FITNESS_FUNCTION": lambda ind, mse: 1 / mse - 0.05 * len(ind.nodes),
     },
     8: {
         "POPULATION_SIZE": 500,
@@ -147,7 +143,8 @@ def balance_weights(gp, mod=1, takeover_len=50):
             * (sample_len - takeover_len // 2)
             / (takeover_len - takeover_len // 2)
             for w, t_w in zip(half_point_w, takeover_w)
-        ]
+        ]  # gp.add_after_iter_hook(lambda gp: balance_exploitation(gp, 50, 0.05))
+
     else:
         new_weights = takeover_w
 
@@ -215,7 +212,7 @@ def solve(
     )
     gp.set_parent_selector("tournament")
     gp.set_survivor_selector("fitness_hole")
-    # gp.add_niching_operator("extinction")
+    gp.add_niching_operator("extinction")
     if not ignore_snapshots:
         gp.add_before_loop_hook(
             lambda gp: restore_snapshot(gp, f"snapshot_{problem}.tmp")
@@ -273,15 +270,175 @@ def solve(
 
     print(f"MSE on validation set: {np.mean((gp.best.f(x_val) - y_val) ** 2):.3e}")
     print()
-
     # Plot the fitness over generations
-    gp.plot(block=False)
+    # gp.plot(block=False)
 
     # Draw the best individual as a tree
-    gp.best.draw(block=False)
+    # gp.best.draw(block=False)
 
     # Plot the best individual projected on the data
-    visualize_result(x, y, gp.best.f, block=True)
+    # visualize_result(x, y, gp.best.f, block=False)
+
+    # Use the best individual to calculate residuals
+    # Isolate the regions where the residuals are the largest
+    # Use the residuals to generate new data points
+    # Use the new data points to train a new model
+    residuals = y_train - gp.best.f(x_train)
+    residuals_idx = np.argsort(np.abs(residuals))[-int(0.1 * residuals.shape[-1]) :]
+    x_residuals = x_train[:, residuals_idx]
+    y_residuals = y_train[residuals_idx]
+
+    # Calculate bounding boxes for the residuals clusters
+    clusters = []
+    current_cluster = [x_residuals[:, 0]]
+
+    # Order x_residuals by the first dimension
+    order = np.argsort(x_residuals[0])
+    x_residuals_ordered = x_residuals[:, order]
+
+    for i in range(1, x_residuals.shape[1]):
+        if np.all(
+            np.abs(x_residuals_ordered[:, i] - x_residuals_ordered[:, i - 1]) <= 0.2
+        ):
+            current_cluster.append(x_residuals_ordered[:, i])
+        else:
+            clusters.append(np.array(current_cluster).T)
+            current_cluster = [x_residuals_ordered[:, i]]
+    if current_cluster:
+        clusters.append(np.array(current_cluster).T)
+
+    bounding_boxes = []
+    for cluster in clusters:
+        min_bounds = np.min(cluster, axis=1)
+        max_bounds = np.max(cluster, axis=1)
+        bounding_boxes.append((min_bounds, max_bounds))
+
+    print("Bounding boxes for the residuals clusters:")
+    for bbox in bounding_boxes:
+        print(f"Min bounds: {bbox[0]}, Max bounds: {bbox[1]}")
+    # plot the bounding boxes as surfaces in 3d
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+    ax.set_xlabel("x[0]")
+    ax.set_ylabel("x[1]")
+    ax.set_zlabel("y")
+    # ax.axis("off")
+    for bbox in bounding_boxes:
+        X, Y = np.meshgrid(
+            np.array([bbox[0][0], bbox[1][0]]), np.array([bbox[0][1], bbox[1][1]])
+        )
+        Z = np.zeros_like(X)
+        ax.plot_surface(
+            X,
+            Y,
+            Z,
+            alpha=0.5,
+            color="r",
+            rstride=1,
+            cstride=1,
+            edgecolor="none",
+        )
+    # set the range of x and y to the range of the data
+    ax.set_xlim([x_train[0].min(), x_train[0].max()])
+    ax.set_ylim([x_train[1].min(), x_train[1].max()])
+
+    plt.show()
+
+    # Train a new model on the residuals
+    gp_residual = GP(x_residuals, y_residuals, seed=SEED)
+    gp_residual.add_exploitation_operator("xover", 80)
+    for k, v in mutations.items():
+        gp_residual.add_exploration_operator(k, v)
+    gp_residual.set_fitness_function(
+        build_fitness_func(x_residuals, y_residuals, instance["FITNESS_FUNCTION"])
+    )
+    gp_residual.set_parent_selector("tournament")
+    gp_residual.set_survivor_selector("fitness_hole")
+    gp_residual.add_niching_operator("extinction")
+    gp_residual.add_after_loop_hook(fine_tune_constants)
+    gp_residual.add_before_iter_hook(balance_weights)
+    gp_residual.add_after_iter_hook(
+        lambda g: early_stop(g, EARLY_STOP_WINDOW_SIZE * 2, 1.0002)
+    )
+    gp_residual.add_after_loop_hook(
+        lambda gp: print(
+            f"Best has depth {gp.best.depth} ({len(gp.best.nodes)} nodes):\n{gp.best}"
+        )
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        gp_residual.run(
+            init_population_size=POPULATION_SIZE,
+            init_max_depth=MAX_DEPTH,
+            max_generations=MAX_GENERATIONS,
+            force_simplify=True,
+            parallelize=multiprocessing,
+            use_tqdm=tqdm,
+        )
+
+    # print(bounding_boxes[0])
+    # print(x_val.shape)
+
+    def combined_f(x: np.ndarray) -> np.ndarray:
+        # x is a vector [(x_0, x_1, ...), ...] and bbox is [(min_x_0, min_x_1, ...), (max_x_0, max_x_1, ...)]
+        # if isinstance(x, list):
+        #     x = np.array(x)
+        return np.where(
+            [
+                np.any(
+                    [
+                        np.all(
+                            [
+                                np.greater_equal(var, bbox[0]),
+                                np.less_equal(var, bbox[1]),
+                            ]
+                        )
+                        for bbox in bounding_boxes
+                    ]
+                )
+                for var in x.T
+            ],
+            gp.best.f(x) + gp_residual.best.f(x),
+            gp.best.f(x),
+        )
+
+    print(
+        f"""
+def f{problem}(x: np.ndarray) -> np.ndarray:
+    bounding_boxes = {bounding_boxes}
+    return np.where(
+        [
+            np.any(
+                [
+                    np.all(
+                        [
+                            np.greater_equal(var, bbox[0]),
+                            np.less_equal(var, bbox[1]),
+                        ]
+                    )
+                    for bbox in bounding_boxes
+                ]
+            )
+            for var in x.T
+        ],
+        {gp.best} + {gp_residual.best},
+        {gp.best},
+    )
+"""
+    )
+
+    print(
+        f"MSE on validation set with combined model: {np.mean((combined_f(x_val) - y_val) ** 2):.3e}"
+    )
+
+    # Plot the fitness over generations
+    # gp_residual.plot(block=False)
+
+    # Draw the best individual as a tree
+    # gp_residual.best.draw(block=False)
+    # Plot the best individual projected on the data
+    # visualize_result(x_residuals, y_residuals, gp_residual.best.f, block=False)
+    visualize_result(x_val, y_val, combined_f, block=True)
 
 
 def main():

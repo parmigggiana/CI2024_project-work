@@ -5,8 +5,9 @@ from concurrent.futures import Executor, as_completed
 import numpy as np
 from numpy.random import SFC64
 
-from individual import Individual
-from model import Node, NodeType, reverse_valid_children, terminal_set, valid_children
+from symreg.individual import Individual
+from symreg.model import (Node, NodeType, reverse_valid_children, terminal_set,
+                          valid_children)
 
 log = logging.getLogger(__name__)
 

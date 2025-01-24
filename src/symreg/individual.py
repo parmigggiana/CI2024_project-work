@@ -1,7 +1,8 @@
 import numpy as np
 from numpy.random import SFC64
 
-from model import Node, NodeType, function_set, terminal_set, valid_children
+from symreg.model import (Node, NodeType, function_set, terminal_set,
+                          valid_children)
 
 
 class Individual:
